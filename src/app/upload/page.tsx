@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import {
   Video,
   ImageIcon,
@@ -21,17 +19,16 @@ import {
   FileText,
   Eye,
   ShieldCheck,
+  Play,
 } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { GlassInput, GlassTextarea } from "@/components/ui/glass-input";
-import { PromptCard } from "@/components/prompt/prompt-card";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/components/providers/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { demoCategories, demoModels } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
-import type { Prompt } from "@/types/database";
 
 type MediaType = "video" | "image" | null;
 type StepNumber = 1 | 2 | 3 | 4;
@@ -67,9 +64,10 @@ export default function UploadPage() {
   const [agreePolicy, setAgreePolicy] = useState(true);
 
   const handleFileSelect = (selectedFile: File) => {
-    const maxSize = (mediaType === "video" ? 50 : 10) * 1024 * 1024;
+    // Allow up to 200MB for video (30-sec HD), 20MB for images
+    const maxSize = (mediaType === "video" ? 200 : 20) * 1024 * 1024;
     if (selectedFile.size > maxSize) {
-      toast(`File too large. Max ${mediaType === "video" ? "50MB" : "10MB"}.`, "error");
+      toast(`File too large. Max ${mediaType === "video" ? "200MB (30-sec video)" : "20MB"}.`, "error");
       return;
     }
 
@@ -136,34 +134,40 @@ export default function UploadPage() {
     try {
       let mediaUrl = "";
 
-      // 1. Upload media file to server storage API
+      // 1. Upload media file DIRECTLY from browser to Supabase Storage
+      //    (bypasses Vercel's server body limit — supports large videos)
       if (file) {
-        setUploadProgress(35);
-        const formData = new FormData();
-        formData.append("file", file);
+        setUploadProgress(25);
+        const supabase = createClient();
+        const isVideo = file.type.startsWith("video/");
+        const fileExt = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || (isVideo ? "mp4" : "jpg");
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `${user.id}/${fileName}`;
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+        setUploadProgress(40);
+        const { data: uploadData, error: storageError } = await supabase.storage
+          .from("media")
+          .upload(filePath, file, {
+            contentType: file.type,
+            upsert: true,
+          });
 
-        // Safely parse JSON — a 413 or 500 HTML response would crash JSON.parse
-        const uploadText = await uploadRes.text();
-        let uploadData: { url?: string; error?: string } = {};
-        try {
-          uploadData = JSON.parse(uploadText);
-        } catch {
-          // Server returned non-JSON (e.g. "Request Entity Too Large")
-          if (uploadRes.status === 413) {
-            throw new Error("File is too large. Please upload a video under 50MB or an image under 15MB.");
-          }
-          throw new Error(`Upload failed (HTTP ${uploadRes.status}). Please try again.`);
-        }
-        if (!uploadRes.ok || !uploadData.url) {
-          throw new Error(uploadData.error || "Failed to upload media file to storage.");
+        if (storageError) {
+          throw new Error(`Storage upload failed: ${storageError.message}`);
         }
 
-        mediaUrl = uploadData.url;
+        setUploadProgress(60);
+        const { data: publicUrlData } = supabase.storage
+          .from("media")
+          .getPublicUrl(uploadData.path);
+
+        if (!publicUrlData?.publicUrl) {
+          throw new Error("Could not get public URL for uploaded file.");
+        }
+        // uploadData re-used below
+        const uploadResult = { url: publicUrlData.publicUrl };
+
+        mediaUrl = uploadResult.url;
       } else if (preview && preview.startsWith("http")) {
         mediaUrl = preview;
       } else {
@@ -771,9 +775,59 @@ export default function UploadPage() {
                 </span>
               </div>
 
-              {/* Render PromptCard live */}
-              <div className="max-w-[320px] mx-auto">
-                <PromptCard prompt={previewPrompt} creator={previewCreator} />
+              {/* Custom inline preview — supports blob: URLs directly */}
+              <div className="max-w-[280px] mx-auto">
+                <div className="rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
+                  {/* Media */}
+                  <div className="relative w-full aspect-[4/5] bg-white/[0.03] overflow-hidden">
+                    {preview ? (
+                      mediaType === "video" ? (
+                        <video
+                          src={preview}
+                          muted
+                          loop
+                          playsInline
+                          autoPlay
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={preview}
+                          alt="preview"
+                          className="w-full h-full object-cover"
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/30">
+                        {mediaType === "video" ? <Play className="w-10 h-10" strokeWidth={1} /> : <ImageIcon className="w-10 h-10" strokeWidth={1} />}
+                        <span className="text-xs">Your media will appear here</span>
+                      </div>
+                    )}
+                    {/* Duration pill */}
+                    {mediaType === "video" && (
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[10px] text-white/80 font-medium">
+                        ▶ 0:30
+                      </div>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="p-3">
+                    <p className="text-[13px] font-semibold text-white truncate">
+                      {title || "Your Prompt Title"}
+                    </p>
+                    <p className="text-[11px] text-white/50 mt-1 line-clamp-2">
+                      {promptText || "Your prompt text will appear here..."}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {(tags.length > 0 ? tags.slice(0, 3) : ["ugc", "ai"]).map((tag) => (
+                        <span key={tag} className="px-1.5 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px]">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
