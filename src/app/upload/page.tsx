@@ -64,10 +64,10 @@ export default function UploadPage() {
   const [agreePolicy, setAgreePolicy] = useState(true);
 
   const handleFileSelect = (selectedFile: File) => {
-    // Allow up to 200MB for video (30-sec HD), 20MB for images
-    const maxSize = (mediaType === "video" ? 200 : 20) * 1024 * 1024;
+    // Supabase Free Plan allows max 50MB per file
+    const maxSize = (mediaType === "video" ? 50 : 20) * 1024 * 1024;
     if (selectedFile.size > maxSize) {
-      toast(`File too large. Max ${mediaType === "video" ? "200MB (30-sec video)" : "20MB"}.`, "error");
+      toast(`File too large. Max ${mediaType === "video" ? "50MB" : "20MB"} (Supabase Free Plan limit).`, "error");
       return;
     }
 
