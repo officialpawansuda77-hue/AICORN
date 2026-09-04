@@ -1,7 +1,6 @@
 "use client";
 
-import { use, useState, useCallback, useMemo } from "react";
-import Image from "next/image";
+import { use, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -15,6 +14,7 @@ import {
   UserPlus,
   Code2,
   Play,
+  Loader2,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -27,8 +27,24 @@ import { useToast } from "@/components/ui/toast";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { demoPrompts, demoProfiles, demoCategories, demoModels } from "@/lib/demo-data";
+import { demoCategories, demoModels } from "@/lib/demo-data";
 import { formatNumber, formatRelativeTime } from "@/lib/utils";
+import type { Prompt } from "@/types/database";
+
+type PromptWithProfile = Prompt & {
+  profiles?: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    role: string;
+    plan: string;
+    links: Record<string, string>;
+    is_banned: boolean;
+    created_at: string;
+  } | null;
+};
 
 export default function PromptDetailPage({
   params,
@@ -45,31 +61,54 @@ export default function PromptDetailPage({
   const [saved, setSaved] = useState(false);
   const [following, setFollowing] = useState(false);
 
-  const prompt = demoPrompts.find((p) => p.id === id);
-  const creator = prompt ? demoProfiles.find((p) => p.id === prompt.user_id) : null;
-  const category = prompt ? demoCategories.find((c) => c.slug === prompt.category_slug) : null;
-  const model = prompt ? demoModels.find((m) => m.slug === prompt.model_slug) : null;
+  // Live DB state
+  const [prompt, setPrompt] = useState<PromptWithProfile | null>(null);
+  const [relatedPrompts, setRelatedPrompts] = useState<PromptWithProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const relatedPrompts = useMemo(() => {
-    if (!prompt) return [];
-    return demoPrompts
-      .filter(
-        (p) =>
-          p.id !== prompt.id &&
-          p.status === "approved" &&
-          (p.category_slug === prompt.category_slug || p.model_slug === prompt.model_slug)
-      )
-      .slice(0, 5);
-  }, [prompt]);
+  useEffect(() => {
+    const fetchPrompt = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/prompts/${id}`);
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        const data = await res.json();
+        if (data.error || !data.prompt) {
+          setNotFound(true);
+          return;
+        }
+        setPrompt(data.prompt);
 
-  const creatorPrompts = useMemo(() => {
-    if (!prompt) return [];
-    return demoPrompts
-      .filter(
-        (p) => p.id !== prompt.id && p.user_id === prompt.user_id && p.status === "approved"
-      )
-      .slice(0, 5);
-  }, [prompt]);
+        // Fetch related prompts (same category)
+        if (data.prompt?.category_slug) {
+          const relRes = await fetch(
+            `/api/prompts?cat=${data.prompt.category_slug}&limit=6`
+          );
+          const relData = await relRes.json();
+          setRelatedPrompts(
+            (relData.prompts || []).filter((p: Prompt) => p.id !== id).slice(0, 5)
+          );
+        }
+      } catch {
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPrompt();
+  }, [id]);
+
+  const creator = prompt?.profiles || null;
+  const category = prompt
+    ? demoCategories.find((c) => c.slug === prompt.category_slug)
+    : null;
+  const model = prompt
+    ? demoModels.find((m) => m.slug === prompt.model_slug)
+    : null;
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return;
@@ -115,7 +154,17 @@ export default function PromptDetailPage({
     }
   }, [prompt, toast, user, openAuthModal]);
 
-  if (!prompt) {
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#08090B] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-white/40 animate-spin" />
+      </div>
+    );
+  }
+
+  // Not found state
+  if (notFound || !prompt) {
     return (
       <div className="max-w-[1400px] mx-auto px-6 py-24 min-h-[60vh] flex flex-col items-center justify-center text-center">
         <h2 className="text-xl font-semibold text-white mb-2">Prompt not found</h2>
@@ -167,15 +216,11 @@ export default function PromptDetailPage({
                   )}
                 </div>
               ) : (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={prompt.media_url}
                   alt={prompt.title}
-                  width={800}
-                  height={
-                    prompt.aspect_ratio ? Math.round(800 / prompt.aspect_ratio) : 600
-                  }
                   className="w-full h-auto object-contain max-h-[75vh] rounded-3xl"
-                  unoptimized
                 />
               )}
             </GlassCard>
@@ -218,7 +263,7 @@ export default function PromptDetailPage({
                     href={`/u/${creator?.username || "creator"}`}
                     className="text-xs font-semibold text-white hover:underline block truncate"
                   >
-                    {creator?.display_name || "Unknown Creator"}
+                    {creator?.display_name || creator?.username || "Unknown Creator"}
                   </Link>
                   <p className="text-[11px] text-white/45">
                     @{creator?.username || "creator"} · {formatRelativeTime(prompt.created_at)}
@@ -401,32 +446,6 @@ export default function PromptDetailPage({
           </div>
         </div>
 
-        {/* ─── More from this creator ──────────────────────── */}
-        {creatorPrompts.length > 0 && (
-          <section className="mt-20">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white tracking-tight">
-                More from {creator?.display_name || "this creator"}
-              </h2>
-              <Link
-                href={`/u/${creator?.username}`}
-                className="text-xs font-medium text-white/60 hover:text-white transition-colors"
-              >
-                View profile →
-              </Link>
-            </div>
-            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-5">
-              {creatorPrompts.map((p) => (
-                <PromptCard
-                  key={p.id}
-                  prompt={p}
-                  creator={demoProfiles.find((pr) => pr.id === p.user_id)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* ─── Similar prompts ─────────────────────────────── */}
         {relatedPrompts.length > 0 && (
           <section className="mt-20 mb-20">
@@ -438,7 +457,7 @@ export default function PromptDetailPage({
                 <PromptCard
                   key={p.id}
                   prompt={p}
-                  creator={demoProfiles.find((pr) => pr.id === p.user_id)}
+                  creator={p.profiles || null}
                 />
               ))}
             </div>
