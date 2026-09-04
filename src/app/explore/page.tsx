@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { Container } from "@/components/layout/container";
 import { GlassDropdown } from "@/components/ui/glass-dropdown";
 import { PromptCard } from "@/components/prompt/prompt-card";
-import { demoPrompts, demoProfiles, demoCategories, demoModels } from "@/lib/demo-data";
-import { Search } from "lucide-react";
+import { demoCategories, demoModels } from "@/lib/demo-data";
+import { Search, X, Upload, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Prompt } from "@/types/database";
 
 const SORT_OPTIONS = [
   { value: "trending", label: "Trending" },
@@ -28,10 +30,44 @@ function ExploreContent() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
+  const searchQuery = searchParams.get("q")?.trim() || "";
   const activeCat = searchParams.get("cat") || "all";
   const activeModel = searchParams.get("model") || "all";
   const activeType = searchParams.get("type") || "all";
   const activeSort = searchParams.get("sort") || "trending";
+
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  const [livePrompts, setLivePrompts] = useState<Prompt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Sync search input state if query param changes externally
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
+
+  // Fetch prompts from server API
+  useEffect(() => {
+    async function fetchPrompts() {
+      setIsLoading(true);
+      try {
+        const queryUrl = searchQuery
+          ? `/api/prompts?q=${encodeURIComponent(searchQuery)}`
+          : "/api/prompts";
+        const res = await fetch(queryUrl);
+        if (res.ok) {
+          const data = await res.json();
+          setLivePrompts(data.prompts || []);
+        } else {
+          setLivePrompts([]);
+        }
+      } catch {
+        setLivePrompts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchPrompts();
+  }, [searchQuery]);
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -44,8 +80,39 @@ function ExploreContent() {
     router.push(qs ? `/explore?${qs}` : "/explore", { scroll: false });
   }
 
+  function handleSearchSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const params = new URLSearchParams(searchParams.toString());
+    if (searchInput.trim()) {
+      params.set("q", searchInput.trim());
+    } else {
+      params.delete("q");
+    }
+    const qs = params.toString();
+    router.push(qs ? `/explore?${qs}` : "/explore", { scroll: false });
+  }
+
+  function handleClearSearch() {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("q");
+    const qs = params.toString();
+    router.push(qs ? `/explore?${qs}` : "/explore", { scroll: false });
+  }
+
   const filteredPrompts = useMemo(() => {
-    let filtered = demoPrompts.filter((p) => p.status === "approved");
+    // ONLY show real community uploaded prompts from Supabase
+    let filtered = [...livePrompts].filter((p) => p.status === "approved");
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.prompt_text.toLowerCase().includes(q) ||
+          p.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
 
     if (activeCat !== "all") {
       filtered = filtered.filter((p) => p.category_slug === activeCat);
@@ -73,17 +140,46 @@ function ExploreContent() {
     }
 
     return filtered;
-  }, [activeCat, activeModel, activeType, activeSort]);
+  }, [livePrompts, searchQuery, activeCat, activeModel, activeType, activeSort]);
 
-  const getProfile = (userId: string) =>
-    demoProfiles.find((p) => p.id === userId);
+  const getProfile = (userId: string, prompt?: any) =>
+    prompt?.profiles || null;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#08090B] pt-32">
-      {/* ─── Sticky Filter Panel ─────────────────────────── */}
+      {/* ─── Sticky Filter & Search Panel ─────────────────────────── */}
       <div className="sticky top-24 z-30 mb-8">
         <Container>
-          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.05] backdrop-blur-2xl p-4 flex flex-col gap-3.5">
+          <div className="rounded-3xl border border-white/[0.08] bg-[#0F1115]/80 backdrop-blur-2xl p-4 flex flex-col gap-3.5 shadow-2xl">
+            {/* Search Bar Row */}
+            <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+              <div className="relative w-full flex items-center rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-2.5 focus-within:border-[#FFB020]/50 transition-colors">
+                <Search className="w-4 h-4 text-white/40 mr-3 shrink-0" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search prompts by keywords, styles, models, or tags..."
+                  className="w-full bg-transparent text-white placeholder-white/40 text-[13.5px] focus:outline-none"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="p-1 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition mr-2 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 hover:text-white text-xs font-medium transition cursor-pointer"
+                >
+                  Search
+                </button>
+              </div>
+            </form>
+
             {/* Row 1: Category Pills */}
             <div className="flex gap-2.5 overflow-x-auto md:overflow-visible scrollbar-hide py-1">
               <button
@@ -115,7 +211,7 @@ function ExploreContent() {
               ))}
             </div>
 
-            {/* Row 2: Model Pills (Start directly with models, NONE amber) */}
+            {/* Row 2: Model Pills */}
             <div className="flex gap-2.5 overflow-x-auto scrollbar-hide py-0.5">
               {demoModels.map((model) => {
                 const isActive = activeModel === model.slug;
@@ -169,30 +265,57 @@ function ExploreContent() {
       </div>
 
       {/* ─── Card Grid ───────────────────────────────────── */}
-      <section className="pt-8 pb-24 flex-1">
+      <section className="pt-4 pb-24 flex-1">
         <Container>
-          {filteredPrompts.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 items-stretch">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-3xl bg-white/[0.03] border border-white/[0.06] aspect-[4/5] animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredPrompts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 items-stretch">
               {filteredPrompts.map((prompt) => (
                 <PromptCard
                   key={prompt.id}
                   prompt={prompt}
-                  creator={getProfile(prompt.user_id)}
+                  creator={getProfile(prompt.user_id, prompt)}
                 />
               ))}
             </div>
+          ) : livePrompts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#FFB020]/20 to-amber-500/5 border border-[#FFB020]/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(255,176,32,0.15)]">
+                <Upload className="w-7 h-7 text-[#FFB020]" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">No Prompts Uploaded Yet</h3>
+              <p className="text-sm text-white/60 mb-6 leading-relaxed">
+                Be the very first creator to publish an AI prompt! Share your prompts for Veo 3, Seedance, Midjourney, or Sora with the world.
+              </p>
+              <Link
+                href="/upload"
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-semibold text-sm transition shadow-[0_2px_16px_rgba(255,176,32,0.3)] cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload First Prompt</span>
+              </Link>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-28 text-center">
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
               <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
                 <Search className="w-6 h-6 text-white/40" />
               </div>
-              <h3 className="text-base font-semibold text-white mb-1">No prompts found</h3>
+              <h3 className="text-base font-semibold text-white mb-1">No matching prompts</h3>
               <p className="text-xs text-white/50 mb-6">
-                Try adjusting your category or model filters to find what you need.
+                No prompts found matching your current search and filters. Try adjusting or resetting them.
               </p>
               <button
                 type="button"
                 onClick={() => {
+                  setSearchInput("");
                   router.push("/explore", { scroll: false });
                 }}
                 className="h-9 px-5 rounded-full bg-[#FFB020] text-[#111] font-semibold text-xs transition hover:bg-[#FFBE4D] cursor-pointer"

@@ -82,6 +82,7 @@ function LandingContent() {
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
 
+  const searchQuery = searchParams.get("q")?.trim() || "";
   const activeCat = searchParams.get("cat") || "all";
   const activeModel = searchParams.get("model") || "all";
   const activeType = (searchParams.get("type") as "image" | "video" | "all") || "all";
@@ -100,26 +101,44 @@ function LandingContent() {
   };
 
   const [livePrompts, setLivePrompts] = useState<Prompt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchLivePrompts() {
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/prompts");
+        const queryUrl = searchQuery
+          ? `/api/prompts?q=${encodeURIComponent(searchQuery)}`
+          : "/api/prompts";
+        const res = await fetch(queryUrl);
         if (res.ok) {
           const data = await res.json();
-          if (data.prompts && data.prompts.length > 0) {
-            setLivePrompts(data.prompts);
-          }
+          setLivePrompts(data.prompts || []);
+        } else {
+          setLivePrompts([]);
         }
-      } catch {}
+      } catch {
+        setLivePrompts([]);
+      } finally {
+        setIsLoading(false);
+      }
     }
     fetchLivePrompts();
-  }, []);
+  }, [searchQuery]);
 
   const filteredPrompts = useMemo(() => {
-    // If live prompts exist in database, show real community prompts!
-    const sourcePrompts = livePrompts.length > 0 ? livePrompts : demoPrompts;
-    let list = sourcePrompts.filter((p) => p.status === "approved");
+    // Show ONLY real community uploaded prompts from Supabase
+    let list = [...livePrompts].filter((p) => p.status === "approved");
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.prompt_text.toLowerCase().includes(q) ||
+          p.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
 
     if (activeCat !== "all") {
       list = list.filter((p) => p.category_slug === activeCat);
@@ -145,10 +164,10 @@ function LandingContent() {
     }
 
     return list;
-  }, [livePrompts, activeCat, activeModel, activeType, activeSort]);
+  }, [livePrompts, searchQuery, activeCat, activeModel, activeType, activeSort]);
 
   const getProfile = (userId: string, prompt?: any) =>
-    prompt?.profiles || demoProfiles.find((p) => p.id === userId);
+    prompt?.profiles || null;
 
   return (
     <div className="relative min-h-screen bg-[#08090B] text-white">
@@ -320,24 +339,50 @@ function LandingContent() {
       {/* ─── Card Grid (Uniform Grid) ─────────────────────────────────── */}
       <section className="pt-8 pb-24">
         <Container>
-          {filteredPrompts.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 items-stretch">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-3xl bg-white/[0.03] border border-white/[0.06] aspect-[4/5] animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredPrompts.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 items-stretch">
               {filteredPrompts.map((prompt) => (
                 <PromptCard
                   key={prompt.id}
                   prompt={prompt}
-                  creator={getProfile(prompt.user_id)}
+                  creator={getProfile(prompt.user_id, prompt)}
                 />
               ))}
             </div>
+          ) : livePrompts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#FFB020]/20 to-amber-500/5 border border-[#FFB020]/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(255,176,32,0.15)]">
+                <Upload className="w-7 h-7 text-[#FFB020]" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">No Prompts Uploaded Yet</h3>
+              <p className="text-sm text-white/60 mb-6 leading-relaxed">
+                Be the very first creator to publish an AI prompt! Share your prompts for Veo 3, Seedance, Midjourney, or Sora with the world.
+              </p>
+              <Link
+                href="/upload"
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-semibold text-sm transition shadow-[0_2px_16px_rgba(255,176,32,0.3)] cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload First Prompt</span>
+              </Link>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-28 text-center">
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
               <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
                 <Search className="w-6 h-6 text-white/40" />
               </div>
-              <h3 className="text-base font-semibold text-white mb-1">No prompts found</h3>
+              <h3 className="text-base font-semibold text-white mb-1">No prompts match your filters</h3>
               <p className="text-xs text-white/50 mb-6">
-                Try adjusting your category or model filters to find what you need.
+                Try clearing your category, model, or search filters to view all available community prompts.
               </p>
               <button
                 type="button"
@@ -346,7 +391,7 @@ function LandingContent() {
                 }}
                 className="h-9 px-5 rounded-full bg-[#FFB020] text-[#111] font-semibold text-xs transition hover:bg-[#FFBE4D] cursor-pointer"
               >
-                Reset filters
+                Reset all filters
               </button>
             </div>
           )}

@@ -133,54 +133,54 @@ export default function UploadPage() {
     setUploading(true);
     setUploadProgress(15);
 
-    const supabase = createClient();
-    let mediaUrl = preview || "";
-
     try {
-      // 1. Upload media to Supabase storage if file was selected
-      if (supabase && file) {
-        const fileExt = file.name.split(".").pop() || "mp4";
-        const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      let mediaUrl = "";
 
-        setUploadProgress(45);
-        const { error: uploadError } = await supabase.storage
-          .from("media")
-          .upload(filePath, file, { upsert: true });
+      // 1. Upload media file to server storage API
+      if (file) {
+        setUploadProgress(35);
+        const formData = new FormData();
+        formData.append("file", file);
 
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage
-            .from("media")
-            .getPublicUrl(filePath);
-          mediaUrl = publicUrlData.publicUrl;
-        }
-      }
-
-      setUploadProgress(75);
-
-      // 2. Insert into Supabase prompts table via secure API route
-      try {
-        const uploadRes = await fetch("/api/prompts/upload", {
+        const uploadRes = await fetch("/api/upload", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title.trim(),
-            prompt_text: promptText.trim(),
-            negative_prompt: negativePrompt.trim() || null,
-            media_type: mediaType || "video",
-            media_url: mediaUrl,
-            thumbnail_url: mediaUrl,
-            category_slug: category,
-            model_slug: model,
-            tags: tags,
-          }),
+          body: formData,
         });
 
         const uploadData = await uploadRes.json();
-        if (!uploadRes.ok || uploadData.error) {
-          console.warn("Upload API notice:", uploadData.error);
+        if (!uploadRes.ok || !uploadData.url) {
+          throw new Error(uploadData.error || "Failed to upload media file to storage.");
         }
-      } catch (e) {
-        console.warn("Upload network warning:", e);
+
+        mediaUrl = uploadData.url;
+      } else if (preview && preview.startsWith("http")) {
+        mediaUrl = preview;
+      } else {
+        throw new Error("Please select a valid image or video file.");
+      }
+
+      setUploadProgress(70);
+
+      // 2. Insert into Supabase prompts table via secure API route
+      const promptRes = await fetch("/api/prompts/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          prompt_text: promptText.trim(),
+          negative_prompt: negativePrompt.trim() || null,
+          media_type: mediaType || "video",
+          media_url: mediaUrl,
+          thumbnail_url: mediaUrl,
+          category_slug: category,
+          model_slug: model,
+          tags: tags,
+        }),
+      });
+
+      const promptData = await promptRes.json();
+      if (!promptRes.ok || promptData.error) {
+        throw new Error(promptData.error || "Failed to publish prompt.");
       }
 
       setUploadProgress(100);

@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     );
 
     const { searchParams } = new URL(request.url);
+    const q = searchParams.get("q")?.trim();
     const category = searchParams.get("cat");
     const model = searchParams.get("model");
     const type = searchParams.get("type");
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
       .from("prompts")
       .select("*, profiles(*)")
       .eq("status", "approved");
+
+    if (q) {
+      query = query.or(`title.ilike.%${q}%,prompt_text.ilike.%${q}%`);
+    }
 
     if (category && category !== "all") {
       query = query.eq("category_slug", category);

@@ -38,6 +38,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (media_url.startsWith("blob:") || !media_url.startsWith("http")) {
+      return NextResponse.json(
+        { error: "Invalid media URL. Please upload a valid image or video file." },
+        { status: 400 }
+      );
+    }
+
     const adminSupabase = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!

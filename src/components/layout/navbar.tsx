@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuth } from "@/components/providers/auth-provider";
+import { SearchModal } from "@/components/search/search-modal";
 
 interface NavbarProps {
   user?: {
@@ -40,6 +41,19 @@ export function Navbar({ user: propUser }: NavbarProps) {
   const { user: authUser, profile, signOut } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+
+  // Global ⌘K / Ctrl+K listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const user = propUser || (profile ? {
     id: profile.id,
@@ -117,13 +131,21 @@ export function Navbar({ user: propUser }: NavbarProps) {
 
         {/* Right: Auth / Actions */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href="/explore"
-            className="w-9 h-9 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
+          {/* Interactive Search Button */}
+          <button
+            type="button"
+            onClick={() => setSearchModalOpen(true)}
+            className="inline-flex items-center gap-2 h-9 px-2.5 sm:px-3.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white transition-all cursor-pointer group"
             aria-label="Search prompts"
           >
-            <Search className="w-4 h-4" strokeWidth={1.5} />
-          </Link>
+            <Search className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" strokeWidth={1.5} />
+            <span className="hidden sm:inline text-xs font-medium text-white/60 group-hover:text-white transition-colors">
+              Search...
+            </span>
+            <kbd className="hidden md:inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/50 border border-white/10">
+              ⌘K
+            </kbd>
+          </button>
 
           {user ? (
             <>
@@ -296,6 +318,12 @@ export function Navbar({ user: propUser }: NavbarProps) {
           </>
         )}
       </AnimatePresence>
+
+      {/* Interactive Global Search Modal */}
+      <SearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+      />
     </header>
   );
 }
