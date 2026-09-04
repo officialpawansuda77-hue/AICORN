@@ -147,7 +147,18 @@ export default function UploadPage() {
           body: formData,
         });
 
-        const uploadData = await uploadRes.json();
+        // Safely parse JSON — a 413 or 500 HTML response would crash JSON.parse
+        const uploadText = await uploadRes.text();
+        let uploadData: { url?: string; error?: string } = {};
+        try {
+          uploadData = JSON.parse(uploadText);
+        } catch {
+          // Server returned non-JSON (e.g. "Request Entity Too Large")
+          if (uploadRes.status === 413) {
+            throw new Error("File is too large. Please upload a video under 50MB or an image under 15MB.");
+          }
+          throw new Error(`Upload failed (HTTP ${uploadRes.status}). Please try again.`);
+        }
         if (!uploadRes.ok || !uploadData.url) {
           throw new Error(uploadData.error || "Failed to upload media file to storage.");
         }
@@ -178,7 +189,17 @@ export default function UploadPage() {
         }),
       });
 
-      const promptData = await promptRes.json();
+      // Safely parse the prompt upload response too
+      const promptText2 = await promptRes.text();
+      let promptData: { error?: string; id?: string } = {};
+      try {
+        promptData = JSON.parse(promptText2);
+      } catch {
+        if (promptRes.status === 413) {
+          throw new Error("Request too large. Please reduce your prompt text and try again.");
+        }
+        throw new Error(`Publish failed (HTTP ${promptRes.status}). Please try again.`);
+      }
       if (!promptRes.ok || promptData.error) {
         throw new Error(promptData.error || "Failed to publish prompt.");
       }

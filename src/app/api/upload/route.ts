@@ -2,6 +2,10 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
+// Increase the body size limit to 55MB for video uploads
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 // Server-side upload handler using service role key to bypass client storage RLS
 export async function POST(request: NextRequest) {
   try {
