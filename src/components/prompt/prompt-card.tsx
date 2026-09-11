@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Play, Copy, Check, Bookmark, ImageOff } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
@@ -20,23 +20,59 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
   const { user, openAuthModal } = useAuth();
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [mediaError, setMediaError] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-    if (prompt.media_type === "video" && videoRef.current) {
-      videoRef.current.play().catch(() => {});
+    if (prompt.media_type === "video" && !videoError) {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = setTimeout(() => {
+        if (videoRef.current) {
+          setIsVideoLoading(true);
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              if (err.name !== "AbortError") {
+                setVideoError(true);
+              }
+              setIsVideoLoading(false);
+            });
+          }
+        }
+      }, 70);
     }
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    if (prompt.media_type === "video" && videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
     }
+    if (prompt.media_type === "video" && videoRef.current) {
+      try {
+        videoRef.current.pause();
+        if (videoRef.current.readyState > 0) {
+          videoRef.current.currentTime = 0;
+        }
+      } catch {}
+    }
+    setIsVideoPlaying(false);
+    setIsVideoLoading(false);
   };
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -89,49 +125,83 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
         >
           {/* Media block: fixed aspect-[4/5], object-cover */}
           <div className="relative w-full aspect-[4/5] overflow-hidden bg-white/[0.02] shrink-0">
-            {!mediaError ? (
-              prompt.media_type === "video" ? (
-                <>
+            {prompt.media_type === "video" ? (
+              <>
+                {/* Base thumbnail image: always rendered underneath so there is zero black flash */}
+                {!imageError ? (
                   <img
                     src={getThumbnailUrl(prompt.thumbnail_url || prompt.media_url, "video")}
                     alt={prompt.title || "AI Prompt"}
-                    onError={() => setMediaError(true)}
-                    className={cn(
-                      "w-full h-full object-cover transition-opacity duration-300",
-                      isHovered && "opacity-0"
-                    )}
+                    onError={() => setImageError(true)}
+                    className="w-full h-full object-cover select-none pointer-events-none"
+                    loading="lazy"
                   />
+                ) : videoError ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-white/[0.03] text-white/35">
+                    <ImageOff className="w-6 h-6" strokeWidth={1.5} />
+                    <span className="text-[11px] font-medium">Media unavailable</span>
+                  </div>
+                ) : null}
+
+                {/* Video hover preview: fades in smoothly once actually playing */}
+                {!videoError && (
                   <video
                     ref={videoRef}
                     src={formatMediaUrl(prompt.media_url, "video")}
                     muted
                     loop
                     playsInline
-                    preload="none"
-                    onError={() => setMediaError(true)}
+                    preload="metadata"
+                    onPlaying={() => {
+                      setIsVideoPlaying(true);
+                      setIsVideoLoading(false);
+                    }}
+                    onWaiting={() => setIsVideoLoading(true)}
+                    onError={() => {
+                      setVideoError(true);
+                      setIsVideoLoading(false);
+                      setIsVideoPlaying(false);
+                    }}
                     className={cn(
-                      "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
-                      isHovered ? "opacity-100" : "opacity-0"
+                      "absolute inset-0 w-full h-full object-cover transition-opacity duration-300 pointer-events-none",
+                      isHovered && isVideoPlaying ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {/* Top-right duration pill: Play glyph + duration */}
-                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 pointer-events-none">
-                    <Play className="w-2.5 h-2.5 text-white fill-white" strokeWidth={1.5} />
-                    <span className="text-[11px] text-white/90 font-medium">
-                      {formattedDuration}
+                )}
+
+                {/* Top-right duration / preview pill */}
+                <div
+                  className={cn(
+                    "absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full backdrop-blur-md border transition-all duration-300 pointer-events-none z-10 select-none",
+                    isVideoPlaying
+                      ? "bg-black/80 border-[#FFB020]/40 text-[#FFB020] shadow-[0_0_12px_rgba(255,176,32,0.25)]"
+                      : "bg-black/60 border-white/10 text-white/90"
+                  )}
+                >
+                  {isVideoPlaying ? (
+                    <span className="flex h-1.5 w-1.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FFB020] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#FFB020]"></span>
                     </span>
-                  </div>
-                </>
-              ) : (
-                <img
-                  src={formatMediaUrl(prompt.media_url, "image")}
-                  alt={prompt.title || "AI Prompt"}
-                  onError={() => setMediaError(true)}
-                  className="w-full h-full object-cover"
-                />
-              )
+                  ) : isVideoLoading && isHovered ? (
+                    <span className="inline-block w-2.5 h-2.5 rounded-full border border-white/40 border-t-white animate-spin" />
+                  ) : (
+                    <Play className="w-2.5 h-2.5 text-white fill-white" strokeWidth={1.5} />
+                  )}
+                  <span className="text-[11px] font-medium">
+                    {isVideoPlaying ? "Playing" : formattedDuration}
+                  </span>
+                </div>
+              </>
+            ) : !imageError ? (
+              <img
+                src={formatMediaUrl(prompt.media_url, "image")}
+                alt={prompt.title || "AI Prompt"}
+                onError={() => setImageError(true)}
+                className="w-full h-full object-cover select-none"
+                loading="lazy"
+              />
             ) : (
-              /* Media load fail fallback: identical aspect-[4/5] box with ImageOff icon */
               <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-white/[0.03] text-white/35">
                 <ImageOff className="w-6 h-6" strokeWidth={1.5} />
                 <span className="text-[11px] font-medium">Media unavailable</span>

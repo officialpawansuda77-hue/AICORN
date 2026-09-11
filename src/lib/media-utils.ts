@@ -51,8 +51,8 @@ export function formatMediaUrl(url: string, mediaType: "video" | "image" = "vide
       // High-resolution Google Drive image thumbnail
       return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`;
     }
-    // Direct stream download link for video
-    return `https://drive.google.com/uc?export=download&id=${driveId}`;
+    // Stream through local proxy endpoint for video to avoid CORP/cross-origin blocks
+    return `/api/media/stream?id=${driveId}`;
   }
 
   // 2. Dropbox handling: Convert ?dl=0 to ?raw=1 for direct streaming

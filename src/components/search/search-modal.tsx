@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, Sparkles, ArrowRight, Video, ImageIcon, CornerDownLeft } from "lucide-react";
 import type { Prompt } from "@/types/database";
 import { cn } from "@/lib/utils";
+import { getThumbnailUrl } from "@/lib/media-utils";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -171,21 +172,11 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                         >
                           <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
                             {p.media_url ? (
-                              p.media_type === "video" ? (
-                                <video
-                                  src={p.media_url}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                />
-                              ) : (
-                                <Image
-                                  src={p.thumbnail_url || p.media_url}
-                                  alt={p.title}
-                                  fill
-                                  className="object-cover"
-                                />
-                              )
+                              <img
+                                src={getThumbnailUrl(p.thumbnail_url || p.media_url, p.media_type)}
+                                alt={p.title}
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/30">
                                 <Sparkles className="w-4 h-4" />

@@ -33,6 +33,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.json",
+  other: {
+    monetag: "597995f95bf3160436fa6c3a116ecf66",
+  },
 };
 
 export const viewport: Viewport = {

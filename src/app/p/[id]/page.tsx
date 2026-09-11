@@ -66,6 +66,7 @@ export default function PromptDetailPage({
   const [copiedJson, setCopiedJson] = useState(false);
   const [saved, setSaved] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [useIframeFallback, setUseIframeFallback] = useState(false);
 
   // Live DB state
   const [prompt, setPrompt] = useState<PromptWithProfile | null>(null);
@@ -205,7 +206,7 @@ export default function PromptDetailPage({
             <GlassCard padding="none" className="overflow-hidden rounded-3xl bg-white/[0.03]">
               {prompt.media_type === "video" ? (
                 <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[75vh] flex items-center justify-center bg-black/40 rounded-3xl overflow-hidden">
-                  {isGoogleDriveUrl(prompt.media_url) ? (
+                  {isGoogleDriveUrl(prompt.media_url) && useIframeFallback ? (
                     <iframe
                       src={getDriveEmbedUrl(prompt.media_url) || formatMediaUrl(prompt.media_url, "video")}
                       className="w-full h-full min-h-[360px] sm:min-h-[460px] rounded-3xl border-0"
@@ -216,14 +217,17 @@ export default function PromptDetailPage({
                     <video
                       src={formatMediaUrl(prompt.media_url, "video")}
                       controls
-                      muted
-                      loop
                       playsInline
                       poster={getThumbnailUrl(prompt.thumbnail_url || prompt.media_url, "video")}
+                      onError={() => {
+                        if (isGoogleDriveUrl(prompt.media_url)) {
+                          setUseIframeFallback(true);
+                        }
+                      }}
                       className="w-full h-full max-h-[75vh] object-contain rounded-3xl"
                     />
                   )}
-                  {prompt.duration_sec && !isGoogleDriveUrl(prompt.media_url) && (
+                  {prompt.duration_sec && (
                     <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs text-white/90 pointer-events-none">
                       <Play className="w-3 h-3 text-white fill-white" />
                       <span>{prompt.duration_sec}s</span>
