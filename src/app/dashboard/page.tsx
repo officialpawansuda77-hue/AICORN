@@ -138,15 +138,27 @@ export default function DashboardPage() {
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </Link>
-            <Link href="/upload">
-              <button
-                type="button"
-                className="h-10 px-5 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Upload New Prompt</span>
-              </button>
-            </Link>
+            {profile?.role === "admin" ? (
+              <Link href="/upload">
+                <button
+                  type="button"
+                  className="h-10 px-5 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Prompt</span>
+                </button>
+              </Link>
+            ) : (
+              <Link href="/explore">
+                <button
+                  type="button"
+                  className="h-10 px-5 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Browse Prompts</span>
+                </button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -200,19 +212,35 @@ export default function DashboardPage() {
               <div className="w-14 h-14 rounded-2xl bg-[#FFB020]/10 border border-[#FFB020]/20 flex items-center justify-center mx-auto mb-4">
                 <Sparkles className="w-6 h-6 text-[#FFB020]" />
               </div>
-              <h3 className="text-base font-semibold text-white mb-2">No prompts uploaded yet</h3>
+              <h3 className="text-base font-semibold text-white mb-2">
+                {profile?.role === "admin" ? "No prompts published yet" : "Explore curated prompts"}
+              </h3>
               <p className="text-xs text-white/55 leading-relaxed mb-6">
-                Publish your first AI video or image prompt to start gathering copies, impressions, and build your creator reputation on Aicorn!
+                {profile?.role === "admin"
+                  ? "Publish live prompts to the Aicorn community catalog using your admin console."
+                  : "Discover trending prompts for Veo 3, Midjourney, and Sora to copy and use in your projects."}
               </p>
-              <Link href="/upload">
-                <button
-                  type="button"
-                  className="h-10 px-6 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Upload Your First Prompt</span>
-                </button>
-              </Link>
+              {profile?.role === "admin" ? (
+                <Link href="/upload">
+                  <button
+                    type="button"
+                    className="h-10 px-6 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Publish First Prompt</span>
+                  </button>
+                </Link>
+              ) : (
+                <Link href="/explore">
+                  <button
+                    type="button"
+                    className="h-10 px-6 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_16px_rgba(255,176,32,0.35)] transition cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Browse Prompts</span>
+                  </button>
+                </Link>
+              )}
             </div>
           ) : (
             /* Prompts Table */

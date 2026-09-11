@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { checkIsAdmin } from "@/lib/admin";
 
 // Increase the body size limit to 55MB for video uploads
 export const maxDuration = 60;
@@ -26,6 +27,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const adminSupabase = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Verify user is an administrator
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin = checkIsAdmin(user.email, profile?.role);
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only administrators can upload media." },
+        { status: 403 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -42,11 +64,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const fileExt = file.name.split(".").pop() || (isVideo ? "mp4" : "png");
     const sanitizedExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, "");

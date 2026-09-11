@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu,
   X,
-  Upload,
   ChevronDown,
   LogOut,
   Settings,
@@ -18,12 +17,14 @@ import {
   Shield,
   ArrowRight,
   Search,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuth } from "@/components/providers/auth-provider";
 import { SearchModal } from "@/components/search/search-modal";
+import { checkIsAdmin } from "@/lib/admin";
 
 interface NavbarProps {
   user?: {
@@ -55,20 +56,22 @@ export function Navbar({ user: propUser }: NavbarProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const isAdmin = checkIsAdmin(authUser?.email, profile?.role);
+
   const user = propUser || (profile ? {
     id: profile.id,
     username: profile.username,
     display_name: profile.display_name,
     avatar_url: profile.avatar_url || authUser?.user_metadata?.avatar_url,
     plan: profile.plan,
-    role: profile.role,
+    role: isAdmin ? ("admin" as const) : profile.role,
   } : authUser ? {
     id: authUser.id,
     username: authUser.email?.split("@")[0],
     display_name: authUser.user_metadata?.full_name || authUser.email?.split("@")[0],
     avatar_url: authUser.user_metadata?.avatar_url,
     plan: "free",
-    role: "explorer",
+    role: isAdmin ? ("admin" as const) : ("explorer" as const),
   } : null);
 
   const isActive = (href: string) => {
@@ -149,13 +152,17 @@ export function Navbar({ user: propUser }: NavbarProps) {
 
           {user ? (
             <>
-              <Link
-                href="/upload"
-                className="hidden sm:inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-semibold bg-white text-[#0B0B0D] hover:bg-white/90 shadow-sm transition-all"
-              >
-                <Upload className="w-3.5 h-3.5" strokeWidth={1.5} />
-                Upload
-              </Link>
+              {user.role === "admin" && (
+                <Link href="/upload">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-[#FFB020] text-[#08090B] text-xs font-bold hover:bg-[#FFBE4D] shadow-[0_2px_12px_rgba(255,176,32,0.35)] transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Upload Prompt</span>
+                  </button>
+                </Link>
+              )}
 
               {user.plan === "pro" && (
                 <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full bg-[#FFB020] text-[#08090B] text-[10px] font-bold uppercase tracking-wider">
@@ -218,7 +225,10 @@ export function Navbar({ user: propUser }: NavbarProps) {
                           <DropdownItem href="/saved" icon={Bookmark} label="Saved" />
                           <DropdownItem href="/settings" icon={Settings} label="Settings" />
                           {user.role === "admin" && (
-                            <DropdownItem href="/admin" icon={Shield} label="Admin" />
+                            <>
+                              <DropdownItem href="/upload" icon={Plus} label="Upload Prompt" />
+                              <DropdownItem href="/admin" icon={Shield} label="Admin Console" />
+                            </>
                           )}
                         </div>
 
@@ -304,6 +314,16 @@ export function Navbar({ user: propUser }: NavbarProps) {
                 >
                   Explore Prompts
                 </Link>
+                {user?.role === "admin" && (
+                  <Link
+                    href="/upload"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="h-10 px-4 rounded-full flex items-center justify-center gap-2 font-bold text-sm bg-[#FFB020] text-[#08090B] shadow-md"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Upload Prompt</span>
+                  </Link>
+                )}
                 {!user && (
                   <Link
                     href="/signup"

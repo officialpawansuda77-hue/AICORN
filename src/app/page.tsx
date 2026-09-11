@@ -9,7 +9,6 @@ import { motion, AnimatePresence, useInView } from "framer-motion";
 import {
   Copy,
   Search,
-  Upload,
   ArrowRight,
   ChevronDown,
   Sparkles,
@@ -64,12 +63,12 @@ const FAQ_ITEMS = [
     a: "Every piece of content on Aicorn has the exact prompt that was used to create it. Click the Copy Prompt button, and it is instantly copied to your clipboard. Free users get 5 video and 5 image copies per month.",
   },
   {
-    q: "Can I upload my own prompts?",
-    a: "Yes. Sign up as a Creator, upload your AI-generated videos or images along with the prompt and settings, and share them with the community. All uploads go through a quick review.",
+    q: "How are prompts curated?",
+    a: "All prompts on Aicorn are tested, verified, and published directly by our platform team to guarantee reproducible, professional results across all supported AI models.",
   },
   {
     q: "What is included in the Pro plan?",
-    a: "Pro gives you 20 video and 50 image prompt copies per month, JSON export for prompt metadata, priority upload review, a Pro badge on your profile, and early access to drops for $4.99/month.",
+    a: "Pro gives you 20 video and 50 image prompt copies per month, JSON export for prompt metadata, a Pro badge on your profile, and early access to drops for $4.99/month.",
   },
   {
     q: "What AI tools are supported?",
@@ -361,18 +360,18 @@ function LandingContent() {
           ) : livePrompts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
               <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#FFB020]/20 to-amber-500/5 border border-[#FFB020]/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(255,176,32,0.15)]">
-                <Upload className="w-7 h-7 text-[#FFB020]" />
+                <Sparkles className="w-7 h-7 text-[#FFB020]" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">No Prompts Uploaded Yet</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Curated Prompts Coming Soon</h3>
               <p className="text-sm text-white/60 mb-6 leading-relaxed">
-                Be the very first creator to publish an AI prompt! Share your prompts for Veo 3, Seedance, Midjourney, or Sora with the world.
+                Our team is publishing verified AI prompts for Veo 3, Seedance, Midjourney, and Sora. Check back soon!
               </p>
               <Link
-                href="/upload"
+                href="/explore"
                 className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-semibold text-sm transition shadow-[0_2px_16px_rgba(255,176,32,0.3)] cursor-pointer"
               >
-                <Upload className="w-4 h-4" />
-                <span>Upload First Prompt</span>
+                <Sparkles className="w-4 h-4" />
+                <span>Explore Prompt Catalog</span>
               </Link>
             </div>
           ) : (
@@ -430,10 +429,10 @@ function LandingContent() {
                 desc: "Found something great? Hit copy and the exact prompt is on your clipboard. Ready to paste into your favorite AI tool.",
               },
               {
-                icon: Upload,
+                icon: Sparkles,
                 step: "03",
-                title: "Create & Share",
-                desc: "Generate your assets with Veo 3, Sora, or Seedance. Share your prompts to build a creator profile and earn recognition.",
+                title: "Generate Content",
+                desc: "Paste your copied prompt into Veo 3, Midjourney, or Sora to generate stunning ads, cinematic clips, and viral content instantly.",
               },
             ].map((item, i) => (
               <Reveal key={item.step} delay={i * 0.1}>

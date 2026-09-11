@@ -9,7 +9,7 @@ import { Container } from "@/components/layout/container";
 import { GlassDropdown } from "@/components/ui/glass-dropdown";
 import { PromptCard } from "@/components/prompt/prompt-card";
 import { demoCategories, demoModels } from "@/lib/demo-data";
-import { Search, X, Upload, Sparkles } from "lucide-react";
+import { Search, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Prompt } from "@/types/database";
 
@@ -289,18 +289,18 @@ function ExploreContent() {
           ) : livePrompts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
               <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#FFB020]/20 to-amber-500/5 border border-[#FFB020]/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(255,176,32,0.15)]">
-                <Upload className="w-7 h-7 text-[#FFB020]" />
+                <Sparkles className="w-7 h-7 text-[#FFB020]" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">No Prompts Uploaded Yet</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Prompt Collection Coming Soon</h3>
               <p className="text-sm text-white/60 mb-6 leading-relaxed">
-                Be the very first creator to publish an AI prompt! Share your prompts for Veo 3, Seedance, Midjourney, or Sora with the world.
+                Check back soon as top prompts for Midjourney, Flux, Veo 3, and Sora are published by our team.
               </p>
               <Link
-                href="/upload"
+                href="/explore"
                 className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-semibold text-sm transition shadow-[0_2px_16px_rgba(255,176,32,0.3)] cursor-pointer"
               >
-                <Upload className="w-4 h-4" />
-                <span>Upload First Prompt</span>
+                <Sparkles className="w-4 h-4" />
+                <span>View All Prompts</span>
               </Link>
             </div>
           ) : (

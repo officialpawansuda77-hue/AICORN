@@ -31,9 +31,8 @@ export const siteConfig = {
     mobile: [
       { label: "Home", href: "/home", icon: "Home" as const },
       { label: "Explore", href: "/explore", icon: "Compass" as const },
-      { label: "Upload", href: "/upload", icon: "Plus" as const },
-      { label: "Dashboard", href: "/dashboard", icon: "BarChart3" as const },
-      { label: "Profile", href: "/profile", icon: "User" as const },
+      { label: "Saved", href: "/saved", icon: "Bookmark" as const },
+      { label: "Profile", href: "/settings", icon: "User" as const },
     ],
   },
 
@@ -42,7 +41,7 @@ export const siteConfig = {
     product: [
       { label: "Explore", href: "/explore" },
       { label: "Pricing", href: "/pricing" },
-      { label: "Upload", href: "/upload" },
+      { label: "Saved Prompts", href: "/saved" },
       { label: "Creators", href: "/explore?sort=creators" },
     ],
     legal: [

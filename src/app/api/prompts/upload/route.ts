@@ -1,6 +1,7 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { checkIsAdmin } from "@/lib/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,27 @@ export async function POST(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
+    }
+
+    const adminSupabase = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Verify user is an administrator
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin = checkIsAdmin(user.email, profile?.role);
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only administrators can publish prompts live to the platform." },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -44,11 +66,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const adminSupabase = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const { data: newPrompt, error: insertError } = await adminSupabase
       .from("prompts")

@@ -251,14 +251,14 @@ export default function PublicProfilePage({
               onChange={(val) => setActiveTab(val as Tab)}
             />
 
-            {isOwner && (
+            {isOwner && currentProfile?.role === "admin" && (
               <Link href="/upload">
                 <button
                   type="button"
                   className="h-9 px-4 rounded-full bg-[#FFB020] text-[#08090B] hover:bg-[#FFBE4D] text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Upload Prompt</span>
+                  <span>Add Prompt</span>
                 </button>
               </Link>
             )}
@@ -275,21 +275,29 @@ export default function PublicProfilePage({
             <div className="py-20 text-center rounded-3xl bg-white/[0.02] border border-white/[0.06] mb-20">
               <Sparkles className="w-8 h-8 text-white/20 mx-auto mb-3" />
               <p className="text-sm font-semibold text-white/80 mb-1">
-                {isOwner ? "You haven't uploaded any prompts yet" : "No prompts in this category yet"}
+                No prompts available in this collection
               </p>
               <p className="text-xs text-white/40 mb-5 max-w-sm mx-auto">
-                {isOwner
-                  ? "Share your AI video & image generation prompts with the community."
-                  : "Check back later when this creator publishes new prompts."}
+                Discover trending video and image generation prompts across the platform.
               </p>
-              {isOwner && (
+              {isOwner && currentProfile?.role === "admin" ? (
                 <Link href="/upload">
+                  <button
+                    type="button"
+                    className="h-10 px-6 rounded-full bg-[#FFB020] text-[#08090B] hover:bg-[#FFBE4D] text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Publish First Prompt</span>
+                  </button>
+                </Link>
+              ) : (
+                <Link href="/explore">
                   <button
                     type="button"
                     className="h-10 px-6 rounded-full bg-white text-[#08090B] hover:bg-white/90 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Upload Your First Prompt</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Explore Prompt Library</span>
                   </button>
                 </Link>
               )}

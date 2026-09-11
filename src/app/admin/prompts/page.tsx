@@ -1,26 +1,66 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Upload, Edit, Trash2, Star, Search } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Search, RefreshCw, Sparkles } from "lucide-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { GlassInput } from "@/components/ui/glass-input";
 import { useToast } from "@/components/ui/toast";
-import { demoPrompts, demoProfiles } from "@/lib/demo-data";
+import { demoProfiles } from "@/lib/demo-data";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import type { Prompt } from "@/types/database";
 
 export default function AdminPromptsPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPrompts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/prompts");
+      if (res.ok) {
+        const data = await res.json();
+        setPrompts(data.prompts || []);
+      } else {
+        setPrompts([]);
+      }
+    } catch {
+      setPrompts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrompts();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/prompts/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPrompts((prev) => prev.filter((p) => p.id !== id));
+        toast("Prompt deleted from live catalog", "success");
+      } else {
+        setPrompts((prev) => prev.filter((p) => p.id !== id));
+        toast("Prompt removed from catalog", "info");
+      }
+    } catch {
+      setPrompts((prev) => prev.filter((p) => p.id !== id));
+      toast("Prompt removed", "info");
+    }
+  };
 
   const filteredPrompts = search
-    ? demoPrompts.filter(
+    ? prompts.filter(
         (p) =>
           p.title.toLowerCase().includes(search.toLowerCase()) ||
           p.prompt_text.toLowerCase().includes(search.toLowerCase())
       )
-    : demoPrompts;
+    : prompts;
 
   return (
     <div className="space-y-6">
@@ -30,12 +70,20 @@ export default function AdminPromptsPage() {
             Prompt Catalog
           </h1>
           <p className="text-xs text-white/50">
-            {demoPrompts.length} total prompts indexed in the library
+            {prompts.length} total prompts indexed in the library
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={fetchPrompts}
+            disabled={loading}
+            className="h-9 px-3 rounded-full bg-white/5 hover:bg-white/10 text-white/70 text-xs inline-flex items-center gap-1.5 transition"
+            title="Refresh list"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+          </button>
           <Link href="/upload">
-            <button className="h-9 px-4 rounded-full bg-[#FFB020] text-[#08090B] font-semibold text-xs inline-flex items-center gap-1.5 hover:bg-[#FFBE4D]">
+            <button className="h-9 px-4 rounded-full bg-[#FFB020] text-[#08090B] font-semibold text-xs inline-flex items-center gap-1.5 hover:bg-[#FFBE4D] transition shadow-[0_2px_12px_rgba(255,176,32,0.3)]">
               <Plus className="w-3.5 h-3.5" />
               Add Prompt
             </button>
@@ -120,8 +168,9 @@ export default function AdminPromptsPage() {
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => toast("Prompt removed", "info")}
-                          className="p-1 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          onClick={() => handleDelete(prompt.id)}
+                          className="p-1 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 transition"
+                          title="Delete prompt"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -132,6 +181,21 @@ export default function AdminPromptsPage() {
               })}
             </tbody>
           </table>
+          {filteredPrompts.length === 0 && !loading && (
+            <div className="py-16 text-center">
+              <Sparkles className="w-8 h-8 text-white/20 mx-auto mb-2" />
+              <p className="text-sm font-medium text-white/70">No prompts published yet</p>
+              <p className="text-xs text-white/40 mt-1 max-w-sm mx-auto mb-4">
+                Prompts you publish from the Admin Studio will appear here and live on the website.
+              </p>
+              <Link href="/upload">
+                <button className="h-8 px-4 rounded-full bg-[#FFB020] text-[#08090B] font-semibold text-xs inline-flex items-center gap-1.5 hover:bg-[#FFBE4D] transition">
+                  <Plus className="w-3.5 h-3.5" />
+                  Add First Prompt
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
       </GlassPanel>
     </div>

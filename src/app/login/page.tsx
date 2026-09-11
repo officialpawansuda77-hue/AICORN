@@ -3,17 +3,23 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mail } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, LogIn } from "lucide-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { GlassInput } from "@/components/ui/glass-input";
 import { Container } from "@/components/layout/container";
 import { useToast } from "@/components/ui/toast";
 import { siteConfig } from "@/config/site";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginMode, setLoginMode] = useState<"password" | "magic">("password");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -26,6 +32,33 @@ export default function LoginPage() {
       }
     }
   }, [toast]);
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+
+    setLoading(true);
+    const supabase = createClient();
+    if (!supabase) {
+      toast("Supabase connection missing", "error");
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setLoading(false);
+    if (error) {
+      toast(error.message, "error");
+    } else {
+      toast("Successfully signed in!", "success");
+      const isAdmin = data.user?.email?.toLowerCase() === "sudapawan301@gmail.com";
+      router.push(isAdmin ? "/upload" : "/home");
+    }
+  };
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,24 +189,104 @@ export default function LoginPage() {
                   <div className="flex-1 h-px bg-white/10" />
                 </div>
 
-                {/* Magic link form */}
-                <form onSubmit={handleMagicLink} className="space-y-4">
-                  <GlassInput
-                    type="email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                {/* Mode Selector */}
+                <div className="flex rounded-full bg-white/5 p-1 mb-5 border border-white/10">
                   <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-11 rounded-full bg-white text-[#08090B] hover:bg-white/90 active:scale-98 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    type="button"
+                    onClick={() => setLoginMode("password")}
+                    className={cn(
+                      "flex-1 py-1.5 rounded-full text-xs font-medium transition cursor-pointer",
+                      loginMode === "password"
+                        ? "bg-[#FFB020] text-[#08090B] font-bold shadow-sm"
+                        : "text-white/60 hover:text-white"
+                    )}
                   >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>{loading ? "Sending link..." : "Send Magic Link"}</span>
+                    Password
                   </button>
-                </form>
+                  <button
+                    type="button"
+                    onClick={() => setLoginMode("magic")}
+                    className={cn(
+                      "flex-1 py-1.5 rounded-full text-xs font-medium transition cursor-pointer",
+                      loginMode === "magic"
+                        ? "bg-[#FFB020] text-[#08090B] font-bold shadow-sm"
+                        : "text-white/60 hover:text-white"
+                    )}
+                  >
+                    Magic Link
+                  </button>
+                </div>
+
+                {loginMode === "password" ? (
+                  <form onSubmit={handlePasswordLogin} className="space-y-3.5 text-left">
+                    <div>
+                      <label className="block text-[11px] font-medium text-white/60 mb-1 ml-1">
+                        Email Address
+                      </label>
+                      <GlassInput
+                        type="email"
+                        placeholder="sudapawan301@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-white/60 mb-1 ml-1">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <GlassInput
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                          autoComplete="current-password"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition cursor-pointer"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-11 mt-2 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] active:scale-98 text-[#08090B] font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_2px_12px_rgba(255,176,32,0.3)]"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>{loading ? "Signing in..." : "Sign In with Password"}</span>
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleMagicLink} className="space-y-4">
+                    <GlassInput
+                      type="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-11 rounded-full bg-white text-[#08090B] hover:bg-white/90 active:scale-98 font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>{loading ? "Sending link..." : "Send Magic Link"}</span>
+                    </button>
+                  </form>
+                )}
               </>
             )}
 

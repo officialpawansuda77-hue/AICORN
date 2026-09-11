@@ -10,7 +10,7 @@ import { PillFilter } from "@/components/ui/pill-filter";
 import { GlassDropdown } from "@/components/ui/glass-dropdown";
 import { PromptCard } from "@/components/prompt/prompt-card";
 import { demoCategories, demoModels } from "@/lib/demo-data";
-import { Upload, Sparkles, Search } from "lucide-react";
+import { Sparkles, Search } from "lucide-react";
 import type { Prompt } from "@/types/database";
 
 const FEED_OPTIONS = [
@@ -186,18 +186,18 @@ export default function HomePage() {
             ) : livePrompts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#FFB020]/20 to-amber-500/5 border border-[#FFB020]/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(255,176,32,0.15)]">
-                  <Upload className="w-7 h-7 text-[#FFB020]" />
+                  <Sparkles className="w-7 h-7 text-[#FFB020]" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">No Prompts In Feed</h3>
+                <h3 className="text-xl font-bold text-white mb-2">No Prompts In Feed Yet</h3>
                 <p className="text-sm text-white/60 mb-6 leading-relaxed">
-                  Be the first creator to share your prompt with the community!
+                  Verified AI prompts will appear here as they are published by our team.
                 </p>
                 <Link
-                  href="/upload"
+                  href="/explore"
                   className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-semibold text-sm transition shadow-[0_2px_16px_rgba(255,176,32,0.3)] cursor-pointer"
                 >
-                  <Upload className="w-4 h-4" />
-                  <span>Upload Prompt</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Explore Prompt Library</span>
                 </Link>
               </div>
             ) : (

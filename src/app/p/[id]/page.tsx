@@ -28,6 +28,12 @@ import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { demoCategories, demoModels } from "@/lib/demo-data";
+import {
+  formatMediaUrl,
+  getThumbnailUrl,
+  getDriveEmbedUrl,
+  isGoogleDriveUrl,
+} from "@/lib/media-utils";
 import { formatNumber, formatRelativeTime } from "@/lib/utils";
 import type { Prompt } from "@/types/database";
 
@@ -198,18 +204,27 @@ export default function PromptDetailPage({
           <div className="lg:sticky lg:top-24">
             <GlassCard padding="none" className="overflow-hidden rounded-3xl bg-white/[0.03]">
               {prompt.media_type === "video" ? (
-                <div className="relative w-full">
-                  <video
-                    src={prompt.media_url}
-                    controls
-                    muted
-                    loop
-                    playsInline
-                    poster={prompt.thumbnail_url || undefined}
-                    className="w-full max-h-[75vh] object-contain bg-black/40 rounded-3xl"
-                  />
-                  {prompt.duration_sec && (
-                    <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs text-white/90">
+                <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[75vh] flex items-center justify-center bg-black/40 rounded-3xl overflow-hidden">
+                  {isGoogleDriveUrl(prompt.media_url) ? (
+                    <iframe
+                      src={getDriveEmbedUrl(prompt.media_url) || formatMediaUrl(prompt.media_url, "video")}
+                      className="w-full h-full min-h-[360px] sm:min-h-[460px] rounded-3xl border-0"
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={formatMediaUrl(prompt.media_url, "video")}
+                      controls
+                      muted
+                      loop
+                      playsInline
+                      poster={getThumbnailUrl(prompt.thumbnail_url || prompt.media_url, "video")}
+                      className="w-full h-full max-h-[75vh] object-contain rounded-3xl"
+                    />
+                  )}
+                  {prompt.duration_sec && !isGoogleDriveUrl(prompt.media_url) && (
+                    <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs text-white/90 pointer-events-none">
                       <Play className="w-3 h-3 text-white fill-white" />
                       <span>{prompt.duration_sec}s</span>
                     </div>
@@ -218,7 +233,7 @@ export default function PromptDetailPage({
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={prompt.media_url}
+                  src={formatMediaUrl(prompt.media_url, "image")}
                   alt={prompt.title}
                   className="w-full h-auto object-contain max-h-[75vh] rounded-3xl"
                 />

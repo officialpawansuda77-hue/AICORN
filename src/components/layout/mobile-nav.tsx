@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, Plus, BarChart3, User } from "lucide-react";
+import { Home, Compass, Bookmark, BarChart3, User, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/components/providers/auth-provider";
+import { checkIsAdmin } from "@/lib/admin";
 
 const iconMap = {
   Home,
   Compass,
-  Plus,
+  Bookmark,
   BarChart3,
   User,
+  Plus,
 } as const;
 
 interface MobileNavProps {
@@ -27,6 +29,17 @@ export function MobileNav({ user: propUser }: MobileNavProps) {
   const pathname = usePathname();
   const { user: authUser, profile } = useAuth();
   const user = propUser || (profile ? { id: profile.id, avatar_url: profile.avatar_url || undefined } : authUser ? { id: authUser.id, avatar_url: authUser.user_metadata?.avatar_url } : null);
+
+  const isAdmin = checkIsAdmin(authUser?.email, profile?.role);
+  const navItems = isAdmin
+    ? [
+        { label: "Home", href: "/home", icon: "Home" as const },
+        { label: "Explore", href: "/explore", icon: "Compass" as const },
+        { label: "Upload", href: "/upload", icon: "Plus" as const },
+        { label: "Saved", href: "/saved", icon: "Bookmark" as const },
+        { label: "Profile", href: "/settings", icon: "User" as const },
+      ]
+    : siteConfig.nav.mobile;
 
   return (
     <nav
@@ -43,37 +56,12 @@ export function MobileNav({ user: propUser }: MobileNavProps) {
           "shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.18)]"
         )}
       >
-        {siteConfig.nav.mobile.map((item) => {
+        {navItems.map((item) => {
           const Icon = iconMap[item.icon as keyof typeof iconMap];
-          const isUpload = item.icon === "Plus";
           const active =
             item.href === "/home"
               ? pathname === "/home"
               : pathname.startsWith(item.href);
-
-          if (isUpload) {
-            return (
-              <Link
-                key={item.href}
-                href={user ? "/upload" : "/login"}
-                className="relative -mt-6 group"
-                aria-label="Upload"
-              >
-                <div
-                  className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center",
-                    "bg-[#FFB020] text-[#08090B]",
-                    "shadow-[0_4px_20px_rgba(255,176,32,0.45)]",
-                    "hover:bg-[#FFBE4D] active:scale-95",
-                    "border-2 border-[#08090B]",
-                    "transition-all duration-200"
-                  )}
-                >
-                  <Plus className="w-5 h-5" strokeWidth={2.5} />
-                </div>
-              </Link>
-            );
-          }
 
           return (
             <Link

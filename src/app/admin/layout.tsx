@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Shield,
@@ -14,6 +15,9 @@ import {
 import { cn } from "@/lib/utils";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Container } from "@/components/layout/container";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useToast } from "@/components/ui/toast";
+import { checkIsAdmin } from "@/lib/admin";
 
 const ADMIN_NAV = [
   { label: "Overview", href: "/admin", icon: BarChart3 },
@@ -30,6 +34,42 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { user, profile, isLoading } = useAuth();
+  const isAdmin = checkIsAdmin(user?.email, profile?.role);
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        toast("Please sign in as administrator to access the admin console.", "error");
+        router.replace("/login");
+      } else if (profile && !isAdmin) {
+        toast("Access restricted: Administrator role required.", "error");
+        router.replace("/home");
+      }
+    }
+  }, [user, profile, isLoading, router, toast, isAdmin]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#08090B] text-white flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-[#FFB020] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (profile && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#08090B] text-white flex flex-col items-center justify-center p-4 text-center">
+        <Shield className="w-12 h-12 text-red-400 mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+        <p className="text-sm text-white/50 max-w-sm mb-6">
+          You do not have permission to access the Admin Console. Redirecting to home...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#08090B] text-white flex pt-24">

@@ -1,25 +1,24 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Video,
   ImageIcon,
+  Link2,
   Upload as UploadIcon,
-  X,
-  Check,
-  ArrowLeft,
-  ArrowRight,
-  FileVideo,
-  AlertCircle,
   Sparkles,
-  Zap,
-  Info,
+  ArrowLeft,
+  Check,
+  X,
+  Play,
+  ShieldCheck,
   Layers,
   FileText,
   Eye,
-  ShieldCheck,
-  Play,
+  Info,
+  ExternalLink,
 } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -29,31 +28,48 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { demoCategories, demoModels } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
+import {
+  formatMediaUrl,
+  getThumbnailUrl,
+  getDriveEmbedUrl,
+  isGoogleDriveUrl,
+  extractGoogleDriveId,
+} from "@/lib/media-utils";
+import { checkIsAdmin } from "@/lib/admin";
+import type { Prompt } from "@/types/database";
 
-type MediaType = "video" | "image" | null;
-type StepNumber = 1 | 2 | 3 | 4;
+type MediaSourceMode = "url" | "file";
+type MediaType = "video" | "image";
 
-const STEPS = [
-  { num: 1, label: "Type", desc: "Select media" },
-  { num: 2, label: "Media", desc: "Upload file" },
-  { num: 3, label: "Details", desc: "Prompt & Model" },
-  { num: 4, label: "Review", desc: "Publish to Feed" },
-];
-
-export default function UploadPage() {
+export default function AdminUploadPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, profile, isLoading, openAuthModal } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<StepNumber>(1);
-  const [mediaType, setMediaType] = useState<MediaType>("video");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // Authorization Check
+  const isAdmin = checkIsAdmin(user?.email, profile?.role);
 
-  // Form fields
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        toast("Please sign in as administrator to publish prompts", "error");
+        router.replace("/login");
+      } else if (profile && !isAdmin) {
+        toast("Access restricted: Only administrators can publish prompts.", "error");
+        router.replace("/explore");
+      }
+    }
+  }, [user, profile, isLoading, router, toast, isAdmin]);
+
+  // Form State
+  const [sourceMode, setSourceMode] = useState<MediaSourceMode>("url");
+  const [mediaType, setMediaType] = useState<MediaType>("video");
+  const [mediaUrlInput, setMediaUrlInput] = useState("");
+  const [thumbnailUrlInput, setThumbnailUrlInput] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("ugc");
   const [model, setModel] = useState("veo-3");
@@ -61,32 +77,26 @@ export default function UploadPage() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [tags, setTags] = useState<string[]>(["ugc", "ai-video", "viral"]);
   const [tagInput, setTagInput] = useState("");
-  const [agreePolicy, setAgreePolicy] = useState(true);
+  const [publishing, setPublishing] = useState(false);
 
-  const handleFileSelect = (selectedFile: File) => {
-    // Supabase Free Plan allows max 50MB per file
-    const maxSize = (mediaType === "video" ? 50 : 20) * 1024 * 1024;
-    if (selectedFile.size > maxSize) {
-      toast(`File too large. Max ${mediaType === "video" ? "50MB" : "20MB"} (Supabase Free Plan limit).`, "error");
-      return;
-    }
+  // Derived media preview
+  const isDrive = isGoogleDriveUrl(mediaUrlInput);
+  const driveId = extractGoogleDriveId(mediaUrlInput);
 
-    setFile(selectedFile);
-    const url = URL.createObjectURL(selectedFile);
-    setPreview(url);
-    toast(`${selectedFile.name} loaded successfully`, "success");
-  };
+  const resolvedMediaUrl =
+    sourceMode === "url"
+      ? formatMediaUrl(mediaUrlInput, mediaType)
+      : filePreview || "";
 
-  const handleFileDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const dropped = e.dataTransfer.files[0];
-      if (dropped) handleFileSelect(dropped);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mediaType]
-  );
+  const resolvedThumbnailUrl =
+    thumbnailUrlInput.trim() ||
+    (sourceMode === "url"
+      ? getThumbnailUrl(mediaUrlInput, mediaType)
+      : filePreview || "");
 
+  const embedUrl = isDrive ? getDriveEmbedUrl(mediaUrlInput) : null;
+
+  // Tag Handlers
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
@@ -98,760 +108,519 @@ export default function UploadPage() {
     }
   };
 
-  const handleRemoveTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  const canProceed = () => {
-    switch (step) {
-      case 1:
-        return !!mediaType;
-      case 2:
-        return !!preview;
-      case 3:
-        return title.trim().length >= 3 && !!category && !!model && promptText.trim().length >= 10;
-      case 4:
-        return agreePolicy;
-      default:
-        return false;
-    }
+  // Local File Handler (Fallback)
+  const handleFileSelect = (selectedFile: File) => {
+    setFile(selectedFile);
+    const url = URL.createObjectURL(selectedFile);
+    setFilePreview(url);
+    toast(`${selectedFile.name} loaded`, "success");
   };
 
-  const handleSubmit = async () => {
-    if (!agreePolicy) {
-      toast("Please confirm your upload follows the Content Policy", "error");
+  // Submit Handler
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!title.trim() || !promptText.trim()) {
+      toast("Title and prompt text are required.", "error");
       return;
     }
 
-    if (!user) {
-      toast("Please sign in to publish", "error");
+    if (sourceMode === "url" && !mediaUrlInput.trim()) {
+      toast("Please provide a valid Google Drive or direct video/image link.", "error");
       return;
     }
 
-    setUploading(true);
-    setUploadProgress(15);
+    if (sourceMode === "file" && !file && !filePreview) {
+      toast("Please select a file or switch to Drive / URL link.", "error");
+      return;
+    }
+
+    setPublishing(true);
 
     try {
-      let mediaUrl = "";
+      let finalMediaUrl = "";
+      let finalThumbnailUrl = "";
 
-      // 1. Upload media file DIRECTLY from browser to Supabase Storage
-      //    (bypasses Vercel's server body limit — supports large videos)
-      if (file) {
-        setUploadProgress(25);
+      if (sourceMode === "url") {
+        // Direct URL / Google Drive - NO Supabase storage needed!
+        finalMediaUrl = resolvedMediaUrl;
+        finalThumbnailUrl = resolvedThumbnailUrl;
+      } else if (file) {
+        // Fallback local file upload to storage
         const supabase = createClient();
-        const isVideo = file.type.startsWith("video/");
-        const fileExt = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || (isVideo ? "mp4" : "jpg");
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+        if (!supabase) throw new Error("Supabase is not configured.");
+        const isVid = file.type.startsWith("video/");
+        const ext = file.name.split(".").pop() || (isVid ? "mp4" : "png");
+        const filePath = `${user?.id || "admin"}/${Date.now()}.${ext}`;
 
-        setUploadProgress(40);
         const { data: uploadData, error: storageError } = await supabase.storage
           .from("media")
-          .upload(filePath, file, {
-            contentType: file.type,
-            upsert: true,
-          });
+          .upload(filePath, file, { contentType: file.type, upsert: true });
 
-        if (storageError) {
-          throw new Error(`Storage upload failed: ${storageError.message}`);
-        }
+        if (storageError) throw new Error(storageError.message);
 
-        setUploadProgress(60);
         const { data: publicUrlData } = supabase.storage
           .from("media")
           .getPublicUrl(uploadData.path);
 
-        if (!publicUrlData?.publicUrl) {
-          throw new Error("Could not get public URL for uploaded file.");
-        }
-        // uploadData re-used below
-        const uploadResult = { url: publicUrlData.publicUrl };
-
-        mediaUrl = uploadResult.url;
-      } else if (preview && preview.startsWith("http")) {
-        mediaUrl = preview;
-      } else {
-        throw new Error("Please select a valid image or video file.");
+        finalMediaUrl = publicUrlData.publicUrl;
+        finalThumbnailUrl = publicUrlData.publicUrl;
       }
 
-      setUploadProgress(70);
-
-      // 2. Insert into Supabase prompts table via secure API route
-      const promptRes = await fetch("/api/prompts/upload", {
+      // Publish directly to live prompts database via admin API
+      const res = await fetch("/api/prompts/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
           prompt_text: promptText.trim(),
           negative_prompt: negativePrompt.trim() || null,
-          media_type: mediaType || "video",
-          media_url: mediaUrl,
-          thumbnail_url: mediaUrl,
+          media_type: mediaType,
+          media_url: finalMediaUrl,
+          thumbnail_url: finalThumbnailUrl || finalMediaUrl,
           category_slug: category,
           model_slug: model,
           tags: tags,
         }),
       });
 
-      // Safely parse the prompt upload response too
-      const promptText2 = await promptRes.text();
-      let promptData: { error?: string; id?: string } = {};
-      try {
-        promptData = JSON.parse(promptText2);
-      } catch {
-        if (promptRes.status === 413) {
-          throw new Error("Request too large. Please reduce your prompt text and try again.");
-        }
-        throw new Error(`Publish failed (HTTP ${promptRes.status}). Please try again.`);
-      }
-      if (!promptRes.ok || promptData.error) {
-        throw new Error(promptData.error || "Failed to publish prompt.");
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to publish prompt.");
       }
 
-      setUploadProgress(100);
-      toast("Prompt published to Aicorn feed!", "success");
+      toast("Prompt successfully published live to website!", "success");
       setTimeout(() => {
-        router.push(profile?.username ? `/u/${profile.username}` : "/");
-      }, 800);
+        router.push("/admin/prompts");
+      }, 700);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to upload prompt";
-      toast(message, "error");
+      const msg = err instanceof Error ? err.message : "Failed to publish prompt";
+      toast(msg, "error");
     } finally {
-      setUploading(false);
+      setPublishing(false);
     }
   };
 
-  // Construct live preview prompt object
-  const previewPrompt: Prompt = {
-    id: "preview-live",
-    user_id: user?.id || "preview-user",
-    media_type: mediaType || "video",
-    media_url:
-      preview ||
-      (mediaType === "video"
-        ? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-        : "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80"),
-    thumbnail_url: preview || null,
-    aspect_ratio: 0.8,
-    duration_sec: mediaType === "video" ? 8 : null,
-    title: title.trim() || "Your Stunning AI Prompt Title",
-    prompt_text:
-      promptText.trim() ||
-      "Photorealistic 8K cinematic shot with volumetric studio lighting, rich textures, and 24fps motion...",
-    negative_prompt: negativePrompt.trim() || null,
-    settings: { seed: 849204 },
-    category_slug: category,
-    model_slug: model,
-    tags: tags.length > 0 ? tags : ["ugc", "ai"],
-    status: "approved",
-    reject_reason: null,
-    is_featured: true,
-    copy_count: 0,
-    view_count: 1,
-    save_count: 0,
-    created_at: new Date().toISOString(),
-  };
-
-  const previewCreator = profile
-    ? profile
-    : user
-    ? {
-        id: user.id,
-        username: user.email?.split("@")[0] || "creator",
-        display_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
-        avatar_url: user.user_metadata?.avatar_url || null,
-        bio: null,
-        role: "creator" as const,
-        plan: "pro" as const,
-        links: {},
-        is_banned: false,
-        created_at: new Date().toISOString(),
-      }
-    : null;
+  if (!isLoading && profile && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#08090B] flex flex-col items-center justify-center p-4 text-center">
+        <ShieldCheck className="w-12 h-12 text-[#FFB020] mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Admin Access Required</h2>
+        <p className="text-sm text-white/50 max-w-sm mb-6">
+          Prompt publishing is exclusively reserved for administrators. Redirecting to explore...
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#08090B] text-white pt-28 pb-32">
-      <Container>
-        {/* Top Breadcrumb & Cancel */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            type="button"
-            onClick={() => (step > 1 ? setStep((step - 1) as StepNumber) : router.back())}
-            className="inline-flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors cursor-pointer"
+    <div className="min-h-screen bg-[#08090B] text-white pt-24 pb-32">
+      <Container className="max-w-6xl">
+        {/* Top Breadcrumb */}
+        <div className="flex items-center justify-between mb-8">
+          <Link
+            href="/admin/prompts"
+            className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-            <span>{step > 1 ? "Previous Step" : "Cancel"}</span>
-          </button>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Prompt Catalog</span>
+          </Link>
 
-          <span className="text-[11px] uppercase tracking-[0.2em] text-[#FFB020] font-semibold">
-            Creator Studio
-          </span>
-        </div>
-
-        {/* 4-Step Stepper Header */}
-        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-2xl p-4 sm:p-5 mb-10">
-          <div className="grid grid-cols-4 gap-2 sm:gap-4">
-            {STEPS.map((s) => {
-              const isDone = step > s.num;
-              const isCurrent = step === s.num;
-              return (
-                <div
-                  key={s.num}
-                  onClick={() => s.num < step && setStep(s.num as StepNumber)}
-                  className={cn(
-                    "flex items-center gap-3 p-2 rounded-2xl transition-all",
-                    s.num < step ? "cursor-pointer hover:bg-white/[0.04]" : ""
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0",
-                      isDone
-                        ? "bg-[#FFB020] text-[#08090B]"
-                        : isCurrent
-                        ? "bg-white text-[#08090B] shadow-[0_0_16px_rgba(255,255,255,0.3)]"
-                        : "bg-white/10 text-white/40"
-                    )}
-                  >
-                    {isDone ? <Check className="w-4 h-4 stroke-[2.5]" /> : s.num}
-                  </div>
-                  <div className="hidden sm:block min-w-0">
-                    <p
-                      className={cn(
-                        "text-xs font-semibold truncate",
-                        isCurrent ? "text-white" : isDone ? "text-white/80" : "text-white/40"
-                      )}
-                    >
-                      {s.label}
-                    </p>
-                    <p className="text-[10.5px] text-white/35 truncate">{s.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-[#FFB020]/10 border border-[#FFB020]/30 text-[#FFB020] text-xs font-bold uppercase tracking-wider">
+              Admin Publisher
+            </span>
           </div>
         </div>
 
-        {/* 2-Column Main Studio Layout */}
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Form & Stepper Content (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* STEP 1: Choose Media Type */}
-            {step === 1 && (
-              <GlassPanel rounded="3xl" className="p-6 sm:p-8 bg-white/[0.04] border-white/[0.08]">
-                <div className="mb-6">
-                  <h1 className="text-2xl font-bold text-white tracking-tight mb-2">
-                    What kind of AI prompt are you publishing?
-                  </h1>
-                  <p className="text-xs text-white/55 leading-relaxed">
-                    Select whether your prompt generates high-framerate AI video or photorealistic images.
-                  </p>
-                </div>
+        {/* Page Title */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+            Publish Live Prompt
+          </h1>
+          <p className="text-sm text-white/50 leading-relaxed max-w-2xl">
+            Paste video or image links from Google Drive, Dropbox, or any cloud host. No file size
+            limits — videos stream directly on the platform with full quality.
+          </p>
+        </div>
 
-                <div className="grid sm:grid-cols-2 gap-4 mb-8">
-                  {/* AI Video Card */}
-                  <div
-                    onClick={() => setMediaType("video")}
-                    className={cn(
-                      "p-6 rounded-3xl border transition-all cursor-pointer relative group",
-                      mediaType === "video"
-                        ? "bg-[#FFB020]/10 border-[#FFB020] shadow-[0_0_30px_rgba(255,176,32,0.15)]"
-                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-[#FFB020]/20 border border-[#FFB020]/30 flex items-center justify-center text-[#FFB020]">
-                        <Video className="w-6 h-6" strokeWidth={1.5} />
-                      </div>
-                      {mediaType === "video" && (
-                        <div className="w-6 h-6 rounded-full bg-[#FFB020] text-[#08090B] flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-white mb-1">AI Video Prompt</h3>
-                    <p className="text-xs text-white/50 mb-4 leading-relaxed">
-                      Cinematic scenes, UGC advertisements, talking avatars, and product videos.
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Veo 3", "Seedance", "Sora", "Kling", "Runway"].map((m) => (
-                        <span
-                          key={m}
-                          className="px-2 py-0.5 rounded-md bg-white/[0.06] text-[10px] text-white/70"
-                        >
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+        {/* Studio Grid: Left Form / Right Live Preview */}
+        <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-8 items-start">
+          {/* ─── Left Column: Input Form ─────────────────── */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* 1. Media Type & Source Mode */}
+            <GlassPanel rounded="3xl" className="p-6 bg-white/[0.04] border-white/[0.08] space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#FFB020]" />
+                  <span>1. Media Source</span>
+                </h3>
 
-                  {/* AI Image Card */}
-                  <div
-                    onClick={() => setMediaType("image")}
-                    className={cn(
-                      "p-6 rounded-3xl border transition-all cursor-pointer relative group",
-                      mediaType === "image"
-                        ? "bg-[#FFB020]/10 border-[#FFB020] shadow-[0_0_30px_rgba(255,176,32,0.15)]"
-                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white">
-                        <ImageIcon className="w-6 h-6" strokeWidth={1.5} />
-                      </div>
-                      {mediaType === "image" && (
-                        <div className="w-6 h-6 rounded-full bg-[#FFB020] text-[#08090B] flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-white mb-1">AI Image Prompt</h3>
-                    <p className="text-xs text-white/50 mb-4 leading-relaxed">
-                      Thumbnails, social graphics, 3D renders, and studio product photography.
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Midjourney", "ChatGPT", "Gemini", "Flux", "Nano Banana"].map((m) => (
-                        <span
-                          key={m}
-                          className="px-2 py-0.5 rounded-md bg-white/[0.06] text-[10px] text-white/70"
-                        >
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
+                {/* Video / Image Selector */}
+                <div className="flex items-center p-1 rounded-xl bg-white/[0.06] border border-white/10">
                   <button
                     type="button"
-                    disabled={!canProceed()}
-                    onClick={() => setStep(2)}
-                    className="h-11 px-8 rounded-full bg-white text-[#08090B] hover:bg-white/90 disabled:opacity-40 font-semibold text-xs transition-all inline-flex items-center gap-2 cursor-pointer shadow-md"
+                    onClick={() => setMediaType("video")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all",
+                      mediaType === "video"
+                        ? "bg-[#FFB020] text-[#08090B]"
+                        : "text-white/60 hover:text-white"
+                    )}
                   >
-                    <span>Next: Upload Media</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Video</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMediaType("image")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all",
+                      mediaType === "image"
+                        ? "bg-[#FFB020] text-[#08090B]"
+                        : "text-white/60 hover:text-white"
+                    )}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Image</span>
                   </button>
                 </div>
-              </GlassPanel>
-            )}
+              </div>
 
-            {/* STEP 2: Media Upload */}
-            {step === 2 && (
-              <GlassPanel rounded="3xl" className="p-6 sm:p-8 bg-white/[0.04] border-white/[0.08]">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
-                    Upload {mediaType === "video" ? "Video Output" : "Image Output"}
-                  </h2>
-                  <p className="text-xs text-white/55 leading-relaxed">
-                    Upload the generated result. This media will be showcased in the feed and cards.
-                  </p>
+              {/* Source Mode Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSourceMode("url")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-semibold border transition-all",
+                    sourceMode === "url"
+                      ? "bg-white/[0.08] border-[#FFB020] text-white"
+                      : "bg-white/[0.02] border-white/10 text-white/50 hover:bg-white/[0.05]"
+                  )}
+                >
+                  <Link2 className="w-4 h-4 text-[#FFB020]" />
+                  <span>Drive / Direct Link (Unlimited Size)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceMode("file")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-semibold border transition-all",
+                    sourceMode === "file"
+                      ? "bg-white/[0.08] border-[#FFB020] text-white"
+                      : "bg-white/[0.02] border-white/10 text-white/50 hover:bg-white/[0.05]"
+                  )}
+                >
+                  <UploadIcon className="w-4 h-4 text-white/60" />
+                  <span>Upload Local File</span>
+                </button>
+              </div>
+
+              {/* Mode: URL Input */}
+              {sourceMode === "url" ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-white/80 mb-1.5">
+                      {mediaType === "video" ? "Video" : "Image"} URL (Google Drive, Dropbox, or Direct MP4){" "}
+                      <span className="text-[#FFB020]">*</span>
+                    </label>
+                    <GlassInput
+                      value={mediaUrlInput}
+                      onChange={(e) => setMediaUrlInput(e.target.value)}
+                      placeholder={
+                        mediaType === "video"
+                          ? "https://drive.google.com/file/d/... or https://domain.com/video.mp4"
+                          : "https://drive.google.com/file/d/... or https://domain.com/image.png"
+                      }
+                      required
+                    />
+                  </div>
+
+                  {/* Drive Detection Notice */}
+                  {isDrive && (
+                    <div className="p-3 rounded-2xl bg-[#FFB020]/10 border border-[#FFB020]/25 flex items-start gap-2.5 text-xs text-white/90">
+                      <Sparkles className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-white">Google Drive Link Detected</p>
+                        <p className="text-[11px] text-white/60 mt-0.5">
+                          Automatically configured for direct streaming and embedded preview without file size restrictions.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Optional Custom Thumbnail */}
+                  {mediaType === "video" && (
+                    <div>
+                      <label className="block text-xs font-medium text-white/60 mb-1.5">
+                        Custom Video Poster / Thumbnail URL (Optional)
+                      </label>
+                      <GlassInput
+                        value={thumbnailUrlInput}
+                        onChange={(e) => setThumbnailUrlInput(e.target.value)}
+                        placeholder="Auto-generated from Drive if left empty"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Mode: File Upload Fallback */
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={mediaType === "video" ? "video/*" : "image/*"}
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFileSelect(f);
+                    }}
+                  />
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-white/15 hover:border-[#FFB020]/50 rounded-2xl p-8 text-center cursor-pointer bg-white/[0.02] hover:bg-white/[0.04] transition-all"
+                  >
+                    <UploadIcon className="w-8 h-8 text-white/40 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-white mb-1">
+                      {file ? file.name : "Click to select a local file"}
+                    </p>
+                    <p className="text-[11px] text-white/40">
+                      {mediaType === "video" ? "MP4, MOV, WebM" : "PNG, JPG, WebP"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </GlassPanel>
+
+            {/* 2. Prompt Formula & Generation Metadata */}
+            <GlassPanel rounded="3xl" className="p-6 bg-white/[0.04] border-white/[0.08] space-y-5">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-3 border-b border-white/[0.06]">
+                <FileText className="w-4 h-4 text-[#FFB020]" />
+                <span>2. Prompt Information</span>
+              </h3>
+
+              {/* Title */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-white/80">
+                    Prompt Title <span className="text-[#FFB020]">*</span>
+                  </label>
+                  <span className="text-[11px] text-white/40 font-mono">{title.length}/70</span>
+                </div>
+                <GlassInput
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Ultra-realistic 4K Cinematic Rain in Tokyo Shinjuku"
+                  maxLength={70}
+                  required
+                />
+              </div>
+
+              {/* Model & Category */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-white/80 mb-1.5">
+                    AI Model <span className="text-[#FFB020]">*</span>
+                  </label>
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="w-full h-11 px-4 rounded-2xl bg-white/[0.05] border border-white/10 text-xs font-medium text-white focus:outline-none focus:border-[#FFB020] transition-colors"
+                  >
+                    {demoModels.map((m) => (
+                      <option key={m.slug} value={m.slug} className="bg-[#121418] text-white">
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleFileSelect(f);
-                  }}
-                  accept={mediaType === "video" ? "video/mp4, video/webm, video/quicktime" : "image/*"}
-                  className="hidden"
-                />
-
-                {!preview ? (
-                  <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleFileDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-white/15 hover:border-[#FFB020]/60 rounded-3xl p-10 sm:p-14 text-center cursor-pointer transition-all bg-white/[0.02] hover:bg-white/[0.04] mb-8 group"
+                <div>
+                  <label className="block text-xs font-semibold text-white/80 mb-1.5">
+                    Category <span className="text-[#FFB020]">*</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full h-11 px-4 rounded-2xl bg-white/[0.05] border border-white/10 text-xs font-medium text-white focus:outline-none focus:border-[#FFB020] transition-colors"
                   >
-                    <div className="w-16 h-16 rounded-2xl bg-white/[0.08] group-hover:bg-[#FFB020]/15 group-hover:scale-105 border border-white/10 flex items-center justify-center mx-auto mb-4 text-white/60 group-hover:text-[#FFB020] transition-all">
-                      <UploadIcon className="w-7 h-7" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-base font-semibold text-white mb-1">
-                      Drag & drop your {mediaType === "video" ? "video" : "image"} here
-                    </h3>
-                    <p className="text-xs text-white/45 mb-4 max-w-sm mx-auto">
-                      or browse from your device. Supported formats:{" "}
-                      {mediaType === "video" ? "MP4, WebM, MOV up to 50MB" : "PNG, JPG, WebP up to 10MB"}
-                    </p>
-                    <span className="inline-flex items-center gap-1.5 h-9 px-5 rounded-full bg-white/[0.08] hover:bg-white/15 border border-white/15 text-xs font-semibold text-white transition-all">
-                      Browse File
+                    {demoCategories.map((c) => (
+                      <option key={c.slug} value={c.slug} className="bg-[#121418] text-white">
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Prompt Text */}
+              <div>
+                <label className="block text-xs font-semibold text-white/80 mb-1.5">
+                  Full Generation Prompt <span className="text-[#FFB020]">*</span>
+                </label>
+                <GlassTextarea
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  placeholder="Paste the complete prompt formula here..."
+                  rows={4}
+                  required
+                />
+              </div>
+
+              {/* Negative Prompt */}
+              <div>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  Negative Prompt (Optional)
+                </label>
+                <GlassTextarea
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="e.g. blurry, low quality, distorted hands, noisy, watermark..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Tags Input */}
+              <div>
+                <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  Tags (Press Enter to add, max 8)
+                </label>
+                <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-white/[0.02] border border-white/10 mb-2">
+                  {tags.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs text-white"
+                    >
+                      #{t}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(t)}
+                        className="hover:text-red-400"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </span>
-                  </div>
-                ) : (
-                  <div className="relative rounded-3xl overflow-hidden border border-white/15 mb-8 bg-black/60">
-                    {mediaType === "video" ? (
-                      <video
-                        src={preview}
-                        controls
-                        className="w-full max-h-[380px] object-contain mx-auto"
+                  ))}
+                  {tags.length < 8 && (
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleAddTag}
+                      placeholder="Add tag..."
+                      className="flex-1 min-w-[100px] bg-transparent text-xs text-white placeholder:text-white/30 focus:outline-none px-2 py-1"
+                    />
+                  )}
+                </div>
+              </div>
+            </GlassPanel>
+
+            {/* Submit Action */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Link href="/admin/prompts">
+                <button
+                  type="button"
+                  className="h-12 px-6 rounded-full bg-white/5 hover:bg-white/10 text-xs font-semibold text-white/70 transition"
+                >
+                  Cancel
+                </button>
+              </Link>
+              <button
+                type="submit"
+                disabled={publishing || !title.trim() || !promptText.trim()}
+                className="h-12 px-9 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-bold text-xs transition-all shadow-[0_2px_20px_rgba(255,176,32,0.4)] disabled:opacity-40 cursor-pointer inline-flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{publishing ? "Publishing to Feed..." : "Publish Live to Feed"}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* ─── Right Column: Interactive Live Preview ─── */}
+          <div className="lg:sticky lg:top-28 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-bold text-white/70 uppercase tracking-wider flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-[#FFB020]" />
+                <span>Live Feed Preview</span>
+              </span>
+              <span className="text-[11px] text-white/40">Real-time simulator</span>
+            </div>
+
+            {/* Preview Card */}
+            <GlassPanel rounded="3xl" className="overflow-hidden bg-white/[0.04] border-white/[0.08] shadow-2xl">
+              <div className="relative w-full aspect-[4/5] bg-black/60 overflow-hidden flex items-center justify-center">
+                {resolvedMediaUrl ? (
+                  mediaType === "video" ? (
+                    embedUrl ? (
+                      <iframe
+                        src={embedUrl}
+                        className="w-full h-full border-0"
+                        allow="autoplay; fullscreen"
+                        allowFullScreen
                       />
                     ) : (
-                      <Image
-                        src={preview}
-                        alt="Preview"
-                        width={800}
-                        height={600}
-                        className="w-full max-h-[380px] object-contain mx-auto"
-                        unoptimized
+                      <video
+                        src={resolvedMediaUrl}
+                        controls
+                        playsInline
+                        poster={resolvedThumbnailUrl || undefined}
+                        className="w-full h-full object-contain"
                       />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFile(null);
-                        setPreview(null);
-                      }}
-                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 hover:bg-black border border-white/20 flex items-center justify-center text-white cursor-pointer transition-colors shadow-lg"
-                      aria-label="Remove media"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    )
+                  ) : (
+                    <img
+                      src={resolvedMediaUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  )
+                ) : (
+                  <div className="text-center p-6 text-white/30">
+                    <Video className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs font-medium">Paste a link to view live preview</p>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="text-xs text-white/50 hover:text-white transition-colors cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canProceed()}
-                    onClick={() => setStep(3)}
-                    className="h-11 px-8 rounded-full bg-white text-[#08090B] hover:bg-white/90 disabled:opacity-40 font-semibold text-xs transition-all inline-flex items-center gap-2 cursor-pointer shadow-md"
-                  >
-                    <span>Next: Prompt Details</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </GlassPanel>
-            )}
-
-            {/* STEP 3: Prompt & Generation Details */}
-            {step === 3 && (
-              <GlassPanel rounded="3xl" className="p-6 sm:p-8 bg-white/[0.04] border-white/[0.08]">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
-                    Prompt & Generation Details
-                  </h2>
-                  <p className="text-xs text-white/55 leading-relaxed">
-                    Provide the exact prompt formula, model name, and category so others can generate identical results.
-                  </p>
-                </div>
-
-                <div className="space-y-5 mb-8">
-                  {/* Title */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-white/80">
-                        Prompt Title <span className="text-[#FFB020]">*</span>
-                      </label>
-                      <span className="text-[11px] text-white/35 font-mono">{title.length}/60</span>
-                    </div>
-                    <GlassInput
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Cinematic UGC Skincare Ad on Modern Kitchen Counter"
-                      maxLength={60}
-                      required
-                    />
+                {/* Duration Badge */}
+                {mediaType === "video" && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[10px] text-white font-medium border border-white/10 pointer-events-none">
+                    <Play className="w-2.5 h-2.5 fill-white" />
+                    <span>0:08</span>
                   </div>
+                )}
+              </div>
 
-                  {/* Category & Model Pickers */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-white/80 mb-1.5">
-                        Category <span className="text-[#FFB020]">*</span>
-                      </label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full h-11 rounded-2xl bg-white/[0.05] border border-white/10 px-4 text-xs text-white focus:outline-none focus:border-[#FFB020] transition-colors"
-                      >
-                        {demoCategories.map((c) => (
-                          <option key={c.slug} value={c.slug} className="bg-[#121418] text-white">
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-white/80 mb-1.5">
-                        AI Generator Model <span className="text-[#FFB020]">*</span>
-                      </label>
-                      <select
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        className="w-full h-11 rounded-2xl bg-white/[0.05] border border-white/10 px-4 text-xs text-white focus:outline-none focus:border-[#FFB020] transition-colors"
-                      >
-                        {demoModels.map((m) => (
-                          <option key={m.slug} value={m.slug} className="bg-[#121418] text-white">
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Generation Prompt Text */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-white/80">
-                        Generation Prompt <span className="text-[#FFB020]">*</span>
-                      </label>
-                      <span className="text-[11px] text-white/35 font-mono">{promptText.length} chars</span>
-                    </div>
-                    <GlassTextarea
-                      value={promptText}
-                      onChange={(e) => setPromptText(e.target.value)}
-                      placeholder="Write your complete prompt text with subject, camera motion, lighting, and style..."
-                      rows={5}
-                      required
-                    />
-                  </div>
-
-                  {/* Negative Prompt */}
-                  <div>
-                    <label className="block text-xs font-semibold text-white/80 mb-1.5">
-                      Negative Prompt <span className="text-white/40">(Optional)</span>
-                    </label>
-                    <GlassInput
-                      value={negativePrompt}
-                      onChange={(e) => setNegativePrompt(e.target.value)}
-                      placeholder="e.g. blurry, cartoon, low resolution, warped limbs"
-                    />
-                  </div>
-
-                  {/* Tags */}
-                  <div>
-                    <label className="block text-xs font-semibold text-white/80 mb-1.5">
-                      Tags <span className="text-white/40">(Press Enter or comma to add)</span>
-                    </label>
-                    <div className="flex flex-wrap gap-2 p-2.5 rounded-2xl bg-white/[0.03] border border-white/10 min-h-[46px] items-center">
-                      {tags.map((t) => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/[0.08] text-xs text-white/80 font-medium"
-                        >
-                          #{t}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTag(t)}
-                            className="text-white/40 hover:text-white"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                      {tags.length < 8 && (
-                        <input
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={handleAddTag}
-                          placeholder={tags.length === 0 ? "Add tags..." : ""}
-                          className="bg-transparent text-xs text-white focus:outline-none flex-1 min-w-[80px]"
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="text-xs text-white/50 hover:text-white transition-colors cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canProceed()}
-                    onClick={() => setStep(4)}
-                    className="h-11 px-8 rounded-full bg-white text-[#08090B] hover:bg-white/90 disabled:opacity-40 font-semibold text-xs transition-all inline-flex items-center gap-2 cursor-pointer shadow-md"
-                  >
-                    <span>Next: Final Review</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </GlassPanel>
-            )}
-
-            {/* STEP 4: Review & Publish */}
-            {step === 4 && (
-              <GlassPanel rounded="3xl" className="p-6 sm:p-8 bg-white/[0.04] border-white/[0.08]">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
-                    Review & Publish
-                  </h2>
-                  <p className="text-xs text-white/55 leading-relaxed">
-                    Double-check your prompt details before publishing to the community feed.
-                  </p>
-                </div>
-
-                {/* Summary Box */}
-                <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-4 mb-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/45">Media Type</span>
-                    <span className="text-xs font-semibold text-white uppercase">{mediaType}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/45">Model</span>
-                    <span className="text-xs font-semibold text-[#FFB020] uppercase">{model}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/45">Category</span>
-                    <span className="text-xs font-semibold text-white uppercase">{category}</span>
-                  </div>
-                  <div className="pt-3 border-t border-white/[0.06]">
-                    <span className="text-xs text-white/45 block mb-1">Prompt Text</span>
-                    <p className="text-xs text-white/80 line-clamp-3 italic leading-relaxed">
-                      &ldquo;{promptText}&rdquo;
-                    </p>
-                  </div>
-                </div>
-
-                {/* Policy Agreement Checkbox */}
-                <label className="flex items-start gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/10 mb-8 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={agreePolicy}
-                    onChange={(e) => setAgreePolicy(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded accent-[#FFB020]"
-                  />
-                  <div className="text-xs text-white/70 leading-relaxed">
-                    I certify that this AI prompt conforms to Aicorn&apos;s{" "}
-                    <Link href="/content-policy" target="_blank" className="text-[#FFB020] underline">
-                      Content Policy
-                    </Link>{" "}
-                    and does not contain harmful, infringing, or non-consensual content.
-                  </div>
-                </label>
-
-                {/* Submit button */}
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setStep(3)}
-                    className="text-xs text-white/50 hover:text-white transition-colors cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    disabled={uploading || !agreePolicy}
-                    onClick={handleSubmit}
-                    className="h-11 px-8 rounded-full bg-[#FFB020] text-[#08090B] hover:bg-[#FFBE4D] disabled:opacity-40 font-semibold text-xs transition-all inline-flex items-center gap-2 cursor-pointer shadow-[0_2px_16px_rgba(255,176,32,0.3)]"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>{uploading ? `Publishing (${uploadProgress}%)...` : "Publish to Feed"}</span>
-                  </button>
-                </div>
-              </GlassPanel>
-            )}
-          </div>
-
-          {/* Right Column: Live Feed Card Preview & Tips (5 cols) */}
-          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-            {/* Live Feed Card Preview */}
-            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
+              {/* Card Meta details */}
+              <div className="p-4 space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-[#FFB020]" />
-                  <span className="text-xs font-semibold text-white uppercase tracking-wider">
-                    Live Feed Card Preview
+                  <span className="px-2 py-0.5 rounded-md bg-white/10 text-[10px] font-bold uppercase text-white/80">
+                    {model}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-[#FFB020]/15 text-[10px] font-bold uppercase text-[#FFB020]">
+                    {category}
                   </span>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white/60 text-[10px] font-mono">
-                  Aspect 4:5
-                </span>
-              </div>
 
-              {/* Custom inline preview — supports blob: URLs directly */}
-              <div className="max-w-[280px] mx-auto">
-                <div className="rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03]">
-                  {/* Media */}
-                  <div className="relative w-full aspect-[4/5] bg-white/[0.03] overflow-hidden">
-                    {preview ? (
-                      mediaType === "video" ? (
-                        <video
-                          src={preview}
-                          muted
-                          loop
-                          playsInline
-                          autoPlay
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={preview}
-                          alt="preview"
-                          className="w-full h-full object-cover"
-                        />
-                      )
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/30">
-                        {mediaType === "video" ? <Play className="w-10 h-10" strokeWidth={1} /> : <ImageIcon className="w-10 h-10" strokeWidth={1} />}
-                        <span className="text-xs">Your media will appear here</span>
-                      </div>
-                    )}
-                    {/* Duration pill */}
-                    {mediaType === "video" && (
-                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[10px] text-white/80 font-medium">
-                        ▶ 0:30
-                      </div>
-                    )}
-                  </div>
-                  {/* Info */}
-                  <div className="p-3">
-                    <p className="text-[13px] font-semibold text-white truncate">
-                      {title || "Your Prompt Title"}
-                    </p>
-                    <p className="text-[11px] text-white/50 mt-1 line-clamp-2">
-                      {promptText || "Your prompt text will appear here..."}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {(tags.length > 0 ? tags.slice(0, 3) : ["ugc", "ai"]).map((tag) => (
-                        <span key={tag} className="px-1.5 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px]">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <h4 className="text-sm font-bold text-white line-clamp-2">
+                  {title.trim() || "Your Stunning Prompt Title"}
+                </h4>
+
+                <p className="text-xs text-white/50 line-clamp-3 font-mono leading-relaxed bg-white/[0.02] p-2.5 rounded-xl border border-white/[0.05]">
+                  {promptText.trim() ||
+                    "Your full prompt formula will appear here so users can inspect, learn, and copy it in one click."}
+                </p>
+
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-white/40">
+                  <span>@{profile?.username || user?.email?.split("@")[0] || "admin"}</span>
+                  <span className="text-[#FFB020] font-semibold">Live on Publish</span>
                 </div>
               </div>
-            </div>
-
-            {/* Creator Guidelines Card */}
-            <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-2xl p-6">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                Prompt Creator Guidelines
-              </h3>
-              <ul className="space-y-3 text-xs text-white/60">
-                <li className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                  <span>Specify exact camera angles, lenses, and lighting style.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                  <span>Use clean high-resolution video/images without watermarks.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                  <span>Tag your prompt accurately with popular models (Veo 3, Sora).</span>
-                </li>
-              </ul>
-            </div>
+            </GlassPanel>
           </div>
         </div>
       </Container>

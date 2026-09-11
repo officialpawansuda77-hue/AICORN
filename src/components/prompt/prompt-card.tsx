@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { Play, Copy, Check, Bookmark, ImageOff } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
+import { formatMediaUrl, getThumbnailUrl } from "@/lib/media-utils";
 import { Avatar } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -92,7 +93,7 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
               prompt.media_type === "video" ? (
                 <>
                   <img
-                    src={prompt.thumbnail_url || prompt.media_url}
+                    src={getThumbnailUrl(prompt.thumbnail_url || prompt.media_url, "video")}
                     alt={prompt.title || "AI Prompt"}
                     onError={() => setMediaError(true)}
                     className={cn(
@@ -102,7 +103,7 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
                   />
                   <video
                     ref={videoRef}
-                    src={prompt.media_url}
+                    src={formatMediaUrl(prompt.media_url, "video")}
                     muted
                     loop
                     playsInline
@@ -123,7 +124,7 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
                 </>
               ) : (
                 <img
-                  src={prompt.media_url}
+                  src={formatMediaUrl(prompt.media_url, "image")}
                   alt={prompt.title || "AI Prompt"}
                   onError={() => setMediaError(true)}
                   className="w-full h-full object-cover"
