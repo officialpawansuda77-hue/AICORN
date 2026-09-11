@@ -8,6 +8,7 @@ import { formatMediaUrl, getThumbnailUrl } from "@/lib/media-utils";
 import { Avatar } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/components/providers/auth-provider";
+import { handlePromptCopyAdFlow } from "@/lib/monetag";
 import type { Prompt, Profile } from "@/types/database";
 
 interface PromptCardProps {
@@ -17,7 +18,7 @@ interface PromptCardProps {
 
 export function PromptCard({ prompt, creator }: PromptCardProps) {
   const { toast } = useToast();
-  const { user, openAuthModal } = useAuth();
+  const { user, profile, openAuthModal } = useAuth();
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -79,8 +80,11 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!user) {
-      openAuthModal();
+    const isPro = profile?.plan === "pro";
+    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro);
+
+    if (!shouldCopy) {
+      toast("Click Copy Prompt again to copy", "info");
       return;
     }
 

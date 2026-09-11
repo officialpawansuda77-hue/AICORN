@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/toast";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
+import { handlePromptCopyAdFlow } from "@/lib/monetag";
 import { demoCategories, demoModels } from "@/lib/demo-data";
 import {
   formatMediaUrl,
@@ -60,7 +61,7 @@ export default function PromptDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const { toast } = useToast();
-  const { user, openAuthModal } = useAuth();
+  const { user, profile, openAuthModal } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [copied, setCopied] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
@@ -119,10 +120,15 @@ export default function PromptDetailPage({
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return;
-    if (!user) {
-      openAuthModal();
+
+    const isPro = profile?.plan === "pro";
+    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro);
+
+    if (!shouldCopy) {
+      toast("Click Copy Prompt again to copy", "info");
       return;
     }
+
     try {
       await navigator.clipboard.writeText(prompt.prompt_text);
       setCopied(true);
@@ -131,14 +137,19 @@ export default function PromptDetailPage({
     } catch {
       toast("Failed to copy prompt", "error");
     }
-  }, [prompt, toast, user, openAuthModal]);
+  }, [prompt, toast, profile]);
 
   const handleCopyJson = useCallback(async () => {
     if (!prompt) return;
-    if (!user) {
-      openAuthModal();
+
+    const isPro = profile?.plan === "pro";
+    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro);
+
+    if (!shouldCopy) {
+      toast("Click Copy JSON again to copy", "info");
       return;
     }
+
     const json = JSON.stringify(
       {
         title: prompt.title,
@@ -159,7 +170,7 @@ export default function PromptDetailPage({
     } catch {
       toast("Failed to copy", "error");
     }
-  }, [prompt, toast, user, openAuthModal]);
+  }, [prompt, toast, profile]);
 
   // Loading state
   if (loading) {
