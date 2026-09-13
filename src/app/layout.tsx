@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Analytics } from "@vercel/analytics/next";
 import { CookieBanner } from "@/components/ui/cookie-banner";
+import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -57,6 +58,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-theme="dark" className="dark" suppressHydrationWarning>
+      <head>
+        {/* Adsterra Popunder Ad Script */}
+        <Script
+          src="https://pl31326120.profitableratecpmnetwork.com/ca/82/75/ca82758c6e00b332d8da2b44373d62f6.js"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className="antialiased min-h-screen bg-[#08090B] text-white/70 selection:bg-[#FFB020]/20 selection:text-[#FFB020]">
         <Providers>
           {/* Animated mesh gradient background */}
