@@ -22,6 +22,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { PromptCard } from "@/components/prompt/prompt-card";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import { demoPrompts, demoProfiles, demoCategories, demoModels } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +81,7 @@ function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
 
   const searchQuery = searchParams.get("q")?.trim() || "";
   const activeCat = searchParams.get("cat") || "all";
@@ -222,12 +224,21 @@ function LandingContent() {
                 <span>Explore Prompts</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
               </Link>
-              <Link
-                href="/signup"
-                className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-medium text-[13.5px] backdrop-blur-xl transition-all cursor-pointer"
-              >
-                Get Started
-              </Link>
+              {!user ? (
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-medium text-[13.5px] backdrop-blur-xl transition-all cursor-pointer"
+                >
+                  Get Started
+                </Link>
+              ) : (
+                <Link
+                  href="/upload"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-medium text-[13.5px] backdrop-blur-xl transition-all cursor-pointer"
+                >
+                  Upload Prompt
+                </Link>
+              )}
             </div>
 
             {/* Tag pills */}

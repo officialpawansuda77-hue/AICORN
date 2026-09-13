@@ -142,13 +142,13 @@ export default function AdminUploadPage() {
     setPublishing(true);
 
     try {
-      let finalMediaUrl = "";
-      let finalThumbnailUrl = "";
+      let finalMediaUrl: string | null = "";
+      let finalThumbnailUrl: string | null = "";
 
       if (sourceMode === "url") {
         // Direct URL / Google Drive - NO Supabase storage needed!
-        finalMediaUrl = resolvedMediaUrl;
-        finalThumbnailUrl = resolvedThumbnailUrl;
+        finalMediaUrl = resolvedMediaUrl || null;
+        finalThumbnailUrl = resolvedThumbnailUrl || null;
       } else if (file) {
         // Fallback local file upload to storage
         const supabase = createClient();

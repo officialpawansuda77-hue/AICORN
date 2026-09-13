@@ -173,7 +173,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                           <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
                             {p.media_url ? (
                               <img
-                                src={getThumbnailUrl(p.thumbnail_url || p.media_url, p.media_type)}
+                                src={getThumbnailUrl(p.thumbnail_url || p.media_url, p.media_type) ?? undefined}
                                 alt={p.title}
                                 className="w-full h-full object-cover"
                               />

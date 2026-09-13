@@ -15,6 +15,7 @@ import {
   Code2,
   Play,
   Loader2,
+  ImageOff,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -28,6 +29,7 @@ import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { handlePromptCopyAdFlow } from "@/lib/monetag";
+import { isPromptSaved, toggleSavedPrompt } from "@/lib/saved-prompts";
 import { demoCategories, demoModels } from "@/lib/demo-data";
 import {
   formatMediaUrl,
@@ -68,6 +70,33 @@ export default function PromptDetailPage({
   const [saved, setSaved] = useState(false);
   const [following, setFollowing] = useState(false);
   const [useIframeFallback, setUseIframeFallback] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
+
+  useEffect(() => {
+    setSaved(isPromptSaved(id, user?.id));
+
+    const handleSavedChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ promptId: string; isSaved: boolean }>;
+      if (customEvent.detail?.promptId === id) {
+        setSaved(customEvent.detail.isSaved);
+      }
+    };
+
+    window.addEventListener("aicorn_saved_prompts_changed", handleSavedChange);
+    return () => {
+      window.removeEventListener("aicorn_saved_prompts_changed", handleSavedChange);
+    };
+  }, [id, user?.id]);
+
+  const handleToggleSave = () => {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    const nowSaved = toggleSavedPrompt(id, user.id);
+    setSaved(nowSaved);
+    toast(nowSaved ? "Saved for later" : "Removed from saved", "success");
+  };
 
   // Live DB state
   const [prompt, setPrompt] = useState<PromptWithProfile | null>(null);
@@ -215,44 +244,101 @@ export default function PromptDetailPage({
           {/* Left: Sticky Media */}
           <div className="lg:sticky lg:top-24">
             <GlassCard padding="none" className="overflow-hidden rounded-3xl bg-white/[0.03]">
-              {prompt.media_type === "video" ? (
-                <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[75vh] flex items-center justify-center bg-black/40 rounded-3xl overflow-hidden">
-                  {isGoogleDriveUrl(prompt.media_url) && useIframeFallback ? (
-                    <iframe
-                      src={getDriveEmbedUrl(prompt.media_url) || formatMediaUrl(prompt.media_url, "video")}
-                      className="w-full h-full min-h-[360px] sm:min-h-[460px] rounded-3xl border-0"
-                      allow="autoplay; fullscreen"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      src={formatMediaUrl(prompt.media_url, "video")}
-                      controls
-                      playsInline
-                      poster={getThumbnailUrl(prompt.thumbnail_url || prompt.media_url, "video")}
-                      onError={() => {
-                        if (isGoogleDriveUrl(prompt.media_url)) {
-                          setUseIframeFallback(true);
-                        }
-                      }}
-                      className="w-full h-full max-h-[75vh] object-contain rounded-3xl"
-                    />
-                  )}
-                  {prompt.duration_sec && (
-                    <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs text-white/90 pointer-events-none">
-                      <Play className="w-3 h-3 text-white fill-white" />
-                      <span>{prompt.duration_sec}s</span>
+              {(() => {
+                const rawMediaUrl = prompt.media_url?.trim() || "";
+                const rawThumbUrl = prompt.thumbnail_url?.trim() || "";
+
+                if (!rawMediaUrl && !rawThumbUrl) {
+                  return (
+                    <div className="w-full aspect-video sm:aspect-[4/3] min-h-[300px] max-h-[75vh] flex flex-col items-center justify-center gap-2 bg-white/[0.03] text-white/35 rounded-3xl">
+                      <ImageOff className="w-10 h-10" strokeWidth={1.5} />
+                      <span className="text-sm font-medium">Media unavailable</span>
                     </div>
-                  )}
-                </div>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={formatMediaUrl(prompt.media_url, "image")}
-                  alt={prompt.title}
-                  className="w-full h-auto object-contain max-h-[75vh] rounded-3xl"
-                />
-              )}
+                  );
+                }
+
+                if (prompt.media_type === "video") {
+                  if (isGoogleDriveUrl(rawMediaUrl) && useIframeFallback) {
+                    const embedUrl = getDriveEmbedUrl(rawMediaUrl) ?? formatMediaUrl(rawMediaUrl, "video");
+                    if (!embedUrl) {
+                      return (
+                        <div className="w-full aspect-video sm:aspect-[4/3] min-h-[300px] max-h-[75vh] flex flex-col items-center justify-center gap-2 bg-white/[0.03] text-white/35 rounded-3xl">
+                          <ImageOff className="w-10 h-10" strokeWidth={1.5} />
+                          <span className="text-sm font-medium">Media unavailable</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[75vh] flex items-center justify-center bg-black/40 rounded-3xl overflow-hidden">
+                        <iframe
+                          src={embedUrl}
+                          className="w-full h-full min-h-[360px] sm:min-h-[460px] rounded-3xl border-0"
+                          allow="autoplay; fullscreen"
+                          allowFullScreen
+                        />
+                      </div>
+                    );
+                  }
+
+                  const videoSrc = formatMediaUrl(rawMediaUrl, "video");
+                  const posterSrc = getThumbnailUrl(rawThumbUrl || rawMediaUrl, "video") ?? undefined;
+
+                  if ((!videoSrc && !isGoogleDriveUrl(rawMediaUrl)) || (mediaError && !isGoogleDriveUrl(rawMediaUrl))) {
+                    return (
+                      <div className="w-full aspect-video sm:aspect-[4/3] min-h-[300px] max-h-[75vh] flex flex-col items-center justify-center gap-2 bg-white/[0.03] text-white/35 rounded-3xl">
+                        <ImageOff className="w-10 h-10" strokeWidth={1.5} />
+                        <span className="text-sm font-medium">Media unavailable</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[75vh] flex items-center justify-center bg-black/40 rounded-3xl overflow-hidden">
+                      <video
+                        src={videoSrc ?? undefined}
+                        controls
+                        playsInline
+                        poster={posterSrc}
+                        onError={() => {
+                          if (isGoogleDriveUrl(rawMediaUrl)) {
+                            setUseIframeFallback(true);
+                          } else {
+                            setMediaError(true);
+                          }
+                        }}
+                        className="w-full h-full max-h-[75vh] object-contain rounded-3xl"
+                      />
+                      {prompt.duration_sec && (
+                        <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs text-white/90 pointer-events-none">
+                          <Play className="w-3 h-3 text-white fill-white" />
+                          <span>{prompt.duration_sec}s</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Image prompt
+                const imageSrc = formatMediaUrl(rawMediaUrl, "image");
+                if (!imageSrc || mediaError) {
+                  return (
+                    <div className="w-full aspect-video sm:aspect-[4/3] min-h-[300px] max-h-[75vh] flex flex-col items-center justify-center gap-2 bg-white/[0.03] text-white/35 rounded-3xl">
+                      <ImageOff className="w-10 h-10" strokeWidth={1.5} />
+                      <span className="text-sm font-medium">Media unavailable</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageSrc}
+                    alt={prompt.title}
+                    onError={() => setMediaError(true)}
+                    className="w-full h-auto object-contain max-h-[75vh] rounded-3xl"
+                  />
+                );
+              })()}
             </GlassCard>
           </div>
 
@@ -437,10 +523,7 @@ export default function PromptDetailPage({
 
               <button
                 type="button"
-                onClick={() => {
-                  setSaved(!saved);
-                  toast(saved ? "Removed from saved" : "Saved for later", "success");
-                }}
+                onClick={handleToggleSave}
                 className="w-11 h-11 rounded-full bg-white/[0.06] border border-white/10 hover:bg-white/10 text-white flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Save prompt"
               >
@@ -509,7 +592,7 @@ export default function PromptDetailPage({
           </button>
           <button
             type="button"
-            onClick={() => setSaved(!saved)}
+            onClick={handleToggleSave}
             className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white"
             aria-label="Save"
           >

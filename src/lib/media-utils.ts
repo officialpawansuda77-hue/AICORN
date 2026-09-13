@@ -15,6 +15,9 @@ export function extractGoogleDriveId(url: string): string | null {
   const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (fileDMatch && fileDMatch[1]) return fileDMatch[1];
 
+  const folderMatch = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch && folderMatch[1]) return folderMatch[1];
+
   const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (idMatch && idMatch[1]) return idMatch[1];
 
@@ -39,10 +42,12 @@ export function isDropboxUrl(url: string): boolean {
 
 /**
  * Converts any media URL (Google Drive, Dropbox, CDN, direct link) into a streamable / direct playable format.
+ * Returns null if the url is empty/falsy (so src={null} suppresses the attribute safely).
  */
-export function formatMediaUrl(url: string, mediaType: "video" | "image" = "video"): string {
-  if (!url) return "";
+export function formatMediaUrl(url: string | null | undefined, mediaType: "video" | "image" = "video"): string | null {
+  if (!url) return null;
   const trimmed = url.trim();
+  if (!trimmed) return null;
 
   // 1. Google Drive handling
   const driveId = extractGoogleDriveId(trimmed);
@@ -65,9 +70,10 @@ export function formatMediaUrl(url: string, mediaType: "video" | "image" = "vide
 
 /**
  * Generates an optimized thumbnail URL for any media URL.
+ * Returns null if the url is empty/falsy.
  */
-export function getThumbnailUrl(url: string, mediaType: "video" | "image" = "video"): string {
-  if (!url) return "";
+export function getThumbnailUrl(url: string | null | undefined, mediaType: "video" | "image" = "video"): string | null {
+  if (!url) return null;
   const driveId = extractGoogleDriveId(url);
   if (driveId) {
     return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;

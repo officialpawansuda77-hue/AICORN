@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -39,23 +39,80 @@ export default function SettingsPage() {
   const [plan, setPlan] = useState<string>("free");
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const originalUsername = useRef<string>("");
+  const abortRef = useRef<AbortController | null>(null);
 
   // Sync state with profile
   useEffect(() => {
     if (profile) {
-      setUsername(profile.username || "");
+      const normalizedUsername = (profile.username || "").toLowerCase().replace(/[^a-z0-9._]/g, "");
+      setUsername(normalizedUsername);
       setDisplayName(profile.display_name || "");
       setBio(profile.bio || "");
       setAvatarUrl(profile.avatar_url || null);
       setPlan(profile.plan || "free");
+      originalUsername.current = normalizedUsername;
     } else if (user) {
-      const emailPrefix = user.email?.split("@")[0] || "creator";
+      const emailPrefix = (user.email?.split("@")[0] || "creator").toLowerCase().replace(/[^a-z0-9._]/g, "");
       setUsername(emailPrefix);
       setDisplayName(user.user_metadata?.full_name || emailPrefix);
       setAvatarUrl(user.user_metadata?.avatar_url || null);
       setPlan("free");
+      originalUsername.current = emailPrefix;
     }
   }, [profile, user]);
+
+  // Debounced username availability check with stale-request prevention
+  const checkUsername = useCallback(
+    async (val: string) => {
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+
+      if (!val || val === originalUsername.current) {
+        setUsernameStatus("idle");
+        return;
+      }
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setUsernameStatus("checking");
+
+      try {
+        const res = await fetch(
+          `/api/profile/check-username?username=${encodeURIComponent(val)}`,
+          { signal: controller.signal }
+        );
+        const data = await res.json();
+        // Only update if this request was not superseded
+        if (!controller.signal.aborted) {
+          // Distinguish server errors from actual "taken" status
+          if (data.reason === "server_error") {
+            setUsernameStatus("idle");
+          } else {
+            setUsernameStatus(data.available ? "available" : "taken");
+          }
+        }
+      } catch (err: unknown) {
+        // Ignore aborted requests; only reset on real failures
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setUsernameStatus("idle");
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (username) checkUsername(username);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [username, checkUsername]);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   // Handle Photo Upload
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,6 +316,16 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-xs font-semibold text-white/70 mb-1.5">
                     Username <span className="text-[#FFB020]">*</span>
+                    {/* Live availability badge */}
+                    {usernameStatus === "checking" && (
+                      <span className="ml-2 text-[10px] text-white/40">Checking…</span>
+                    )}
+                    {usernameStatus === "available" && (
+                      <span className="ml-2 text-[10px] text-emerald-400 font-semibold">✓ Available</span>
+                    )}
+                    {usernameStatus === "taken" && (
+                      <span className="ml-2 text-[10px] text-red-400 font-semibold">✗ Already taken</span>
+                    )}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-white/40 font-mono">

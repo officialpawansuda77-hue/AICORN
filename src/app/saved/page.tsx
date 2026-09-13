@@ -1,17 +1,98 @@
 "use client";
 
+import { useEffect, useState, useRef, useCallback } from "react";
 import { PromptCard } from "@/components/prompt/prompt-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { Container } from "@/components/ui/container";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
-import { demoPrompts, demoProfiles } from "@/lib/demo-data";
-import { Bookmark } from "lucide-react";
+import { useAuth } from "@/components/providers/auth-provider";
+import { createClient } from "@/lib/supabase/client";
+import { getSavedPromptIds } from "@/lib/saved-prompts";
+import { Bookmark, Loader2 } from "lucide-react";
 import Link from "next/link";
+import type { Prompt, Profile } from "@/types/database";
+
+interface SavedEntry {
+  prompt: Prompt;
+  creator: Profile | null;
+}
 
 export default function SavedPage() {
   const { theme, toggleTheme } = useTheme();
-  const savedPrompts = demoPrompts.slice(0, 8);
+  const { user, isLoading: authLoading } = useAuth();
+  const [entries, setEntries] = useState<SavedEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Track which user ID the current entries belong to
+  const lastUserId = useRef<string | null>(null);
+
+  const fetchSaved = useCallback(async (uid: string) => {
+    setLoading(true);
+    const savedIds = getSavedPromptIds(uid);
+    if (!savedIds.length) {
+      setEntries([]);
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("prompts")
+        .select("*, profiles(*)")
+        .in("id", savedIds);
+
+      if (!error && data) {
+        // Preserve saved order
+        const mapped: SavedEntry[] = savedIds
+          .map((id) => (data as (Prompt & { profiles: Profile | null })[]).find((p) => p.id === id))
+          .filter((p): p is Prompt & { profiles: Profile | null } => Boolean(p))
+          .map((p) => ({
+            prompt: p,
+            creator: p.profiles ?? null,
+          }));
+        setEntries(mapped);
+      } else {
+        setEntries([]);
+      }
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    // If user changed (or logged out), clear stale entries immediately
+    const uid = user?.id ?? null;
+    if (uid !== lastUserId.current) {
+      setEntries([]);
+      lastUserId.current = uid;
+    }
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    fetchSaved(user.id);
+
+    const handleSavedChange = () => {
+      fetchSaved(user.id);
+    };
+
+    window.addEventListener("aicorn_saved_prompts_changed", handleSavedChange);
+    return () => {
+      window.removeEventListener("aicorn_saved_prompts_changed", handleSavedChange);
+    };
+  }, [user, authLoading, fetchSaved]);
 
   return (
     <div className="min-h-screen bg-[#08090B] text-white pt-32">
@@ -28,24 +109,46 @@ export default function SavedPage() {
           </p>
         </div>
 
-        {savedPrompts.length > 0 ? (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-5">
-            {savedPrompts.map((p) => (
-              <PromptCard
-                key={p.id}
-                prompt={p}
-                creator={demoProfiles.find((pr) => pr.id === p.user_id)}
-              />
-            ))}
+        {/* Loading state */}
+        {(loading || authLoading) && (
+          <div className="flex items-center justify-center py-32 text-white/40">
+            <Loader2 className="w-6 h-6 animate-spin mr-3" />
+            <span className="text-sm">Loading saved prompts…</span>
           </div>
-        ) : (
+        )}
+
+        {/* Not logged in */}
+        {!loading && !authLoading && !user && (
           <div className="flex flex-col items-center justify-center py-32 text-center">
             <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-white/40">
               <Bookmark className="w-6 h-6" strokeWidth={1.5} />
             </div>
-            <h3 className="text-base font-semibold text-white mb-1">
-              No saved prompts yet
-            </h3>
+            <h3 className="text-base font-semibold text-white mb-1">Sign in to see saved prompts</h3>
+            <p className="text-xs text-white/50 mb-6 max-w-xs">
+              Create an account or sign in to bookmark prompts and access them anytime.
+            </p>
+            <Link href="/login">
+              <GlassButton variant="accent" size="sm">Sign In</GlassButton>
+            </Link>
+          </div>
+        )}
+
+        {/* Saved prompts grid */}
+        {!loading && !authLoading && user && entries.length > 0 && (
+          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-5">
+            {entries.map(({ prompt, creator }) => (
+              <PromptCard key={prompt.id} prompt={prompt} creator={creator} />
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !authLoading && user && entries.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-32 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-white/40">
+              <Bookmark className="w-6 h-6" strokeWidth={1.5} />
+            </div>
+            <h3 className="text-base font-semibold text-white mb-1">No saved prompts yet</h3>
             <p className="text-xs text-white/50 mb-6 max-w-xs">
               Click the bookmark icon on any prompt card in the feed to save it here.
             </p>

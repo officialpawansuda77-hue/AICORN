@@ -11,13 +11,13 @@ export const siteConfig = {
   ogImage: "/og-image.png",
   logo: "/aicorn-logo.png",
 
-  // Social links — TODO_REPLACE with your actual handles
+  // Social links
   social: {
-    email: "hello@aicorn.ai", // TODO_REPLACE
-    x: "https://x.com/aicorn", // TODO_REPLACE
-    linkedin: "https://linkedin.com/company/aicorn", // TODO_REPLACE
-    instagram: "https://instagram.com/aicorn", // TODO_REPLACE
-    youtube: "https://youtube.com/@aicorn", // TODO_REPLACE
+    email: "hello@aicorn.ai",
+    x: "https://x.com/Pawan0Suda",
+    linkedin: "https://www.linkedin.com/in/pawan-suda-046923374?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app",
+    instagram: "https://www.instagram.com/mr_pawansuda_?stkn=MTcybXluN2JjajdvNA==",
+    youtube: "https://youtube.com/@aicorn",
   },
 
   // Navigation

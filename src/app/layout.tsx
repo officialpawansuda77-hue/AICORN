@@ -4,6 +4,7 @@ import { Providers } from "@/components/providers/providers";
 import { MeshGradient } from "@/components/ui/mesh-gradient";
 import { Navbar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { CookieBanner, GatedAnalytics } from "@/components/ui/cookie-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,12 +28,16 @@ export const metadata: Metadata = {
     title: siteConfig.name,
     description: siteConfig.description,
     images: [siteConfig.ogImage],
+    creator: "@Pawan0Suda",
   },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.json",
+  alternates: {
+    canonical: siteConfig.url,
+  },
   other: {
     monetag: "597995f95bf3160436fa6c3a116ecf66",
   },
@@ -66,6 +71,12 @@ export default function RootLayout({
           <main className="w-full">
             {children}
           </main>
+
+          {/* Vercel Analytics (gated on cookie consent) */}
+          <GatedAnalytics />
+
+          {/* Cookie Consent */}
+          <CookieBanner />
         </Providers>
       </body>
     </html>

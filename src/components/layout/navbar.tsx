@@ -12,7 +12,6 @@ import {
   LogOut,
   Settings,
   User,
-  BarChart3,
   Bookmark,
   Shield,
   ArrowRight,
@@ -221,7 +220,6 @@ export function Navbar({ user: propUser }: NavbarProps) {
                             icon={User}
                             label="Profile"
                           />
-                          <DropdownItem href="/dashboard" icon={BarChart3} label="Dashboard" />
                           <DropdownItem href="/saved" icon={Bookmark} label="Saved" />
                           <DropdownItem href="/settings" icon={Settings} label="Settings" />
                           {user.role === "admin" && (
