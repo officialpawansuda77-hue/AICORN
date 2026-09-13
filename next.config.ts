@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import crypto from "crypto";
 
 const nextConfig: NextConfig = {
   images: {
@@ -15,10 +14,6 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    // Use a per-build nonce would be ideal, but Next.js injects inline
-    // styles itself so 'unsafe-inline' for style-src is required.
-    // For scripts we tighten to strict-dynamic where possible.
-    const nonce = crypto.randomBytes(16).toString("base64");
     return [
       {
         source: "/(.*)",
@@ -27,9 +22,9 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              `script-src 'self' 'nonce-${nonce}' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net`,
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://va.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
+              "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https: http:",
               "media-src 'self' blob: https://drive.google.com https://drive.usercontent.google.com https://*.googleusercontent.com https://*.supabase.co https://*.supabase.in",
               "frame-src 'self' https://drive.google.com https://docs.google.com",

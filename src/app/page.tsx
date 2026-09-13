@@ -674,9 +674,44 @@ function LandingContent() {
   );
 }
 
+function LandingFallback() {
+  return (
+    <div className="relative min-h-screen bg-[#08090B] text-white">
+      <section className="relative min-h-[620px] flex items-center pt-36 pb-20 overflow-hidden">
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <Image
+            src="/hero-bg.jpg"
+            alt="Hero background"
+            fill
+            priority
+            className="object-cover object-right opacity-90"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,9,11,0.94)_0%,rgba(8,9,11,0.72)_42%,rgba(8,9,11,0.2)_100%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_top,#08090B_0%,transparent_38%)] pointer-events-none" />
+        </div>
+        <Container className="relative z-10">
+          <div className="max-w-[560px]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-3.5 py-1.5 text-[12px] text-white/80 backdrop-blur-xl mb-6 select-none shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
+              <Sparkles className="w-3.5 h-3.5 text-[#FFB020]" />
+              <span>1,200+ AI Prompts</span>
+            </div>
+            <h1 className="text-[34px] sm:text-[52px] leading-[1.06] tracking-[-0.03em] font-bold mb-5">
+              <span className="text-white block">Free UGC & Ad Prompts</span>
+              <span className="text-white/45 block">for AI Video & Image Creation</span>
+            </h1>
+            <p className="text-[14.5px] leading-[1.65] text-white/65 max-w-[460px] mb-7">
+              Browse our curated library of professional AI video and image prompts.
+            </p>
+          </div>
+        </Container>
+      </section>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#08090B]" />}>
+    <Suspense fallback={<LandingFallback />}>
       <LandingContent />
     </Suspense>
   );
