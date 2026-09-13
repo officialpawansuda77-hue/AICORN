@@ -26,16 +26,17 @@ export function markAdOpenedForPrompt(promptId: string): void {
 
 /**
  * Handles the copy prompt ad flow:
- * - PRO users: Never see ads, copies immediately (returns true).
+ * - ADMIN & PRO users: Never see ads, copies immediately (returns true).
  * - FREE users (1st click): Opens Monetag direct link in new tab, returns false.
  * - FREE users (2nd click): Copies prompt directly without ad (returns true).
  */
 export function handlePromptCopyAdFlow(
   promptId: string,
-  isProUser: boolean
+  isProUser: boolean,
+  isAdminUser?: boolean
 ): boolean {
-  // Pro users get direct copy without any ads
-  if (isProUser) {
+  // Admin and Pro users get direct copy without any ads
+  if (isProUser || isAdminUser) {
     return true;
   }
 

@@ -30,6 +30,7 @@ import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
 import { handlePromptCopyAdFlow } from "@/lib/monetag";
 import { isPromptSaved, toggleSavedPrompt } from "@/lib/saved-prompts";
+import { checkIsAdmin } from "@/lib/admin";
 import { demoCategories, demoModels } from "@/lib/demo-data";
 import {
   formatMediaUrl,
@@ -154,7 +155,8 @@ export default function PromptDetailPage({
     if (!prompt) return;
 
     const isPro = profile?.plan === "pro";
-    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro);
+    const isAdmin = checkIsAdmin(user?.email, profile?.role);
+    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro, isAdmin);
 
     if (!shouldCopy) {
       toast("Click Copy Prompt again to copy", "info");
@@ -175,7 +177,8 @@ export default function PromptDetailPage({
     if (!prompt) return;
 
     const isPro = profile?.plan === "pro";
-    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro);
+    const isAdmin = checkIsAdmin(user?.email, profile?.role);
+    const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro, isAdmin);
 
     if (!shouldCopy) {
       toast("Click Copy JSON again to copy", "info");
