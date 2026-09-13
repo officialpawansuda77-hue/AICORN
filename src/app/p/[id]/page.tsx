@@ -89,13 +89,16 @@ export default function PromptDetailPage({
   }, [id, user?.id]);
 
   const handleToggleSave = () => {
-    if (!user) {
-      openAuthModal();
-      return;
-    }
-    const nowSaved = toggleSavedPrompt(id, user.id);
+    const nowSaved = toggleSavedPrompt(id, user?.id);
     setSaved(nowSaved);
-    toast(nowSaved ? "Saved for later" : "Removed from saved", "success");
+    toast(
+      nowSaved
+        ? user
+          ? "Saved for later"
+          : "Saved locally (Sign in to sync)"
+        : "Removed from saved",
+      "success"
+    );
   };
 
   // Live DB state

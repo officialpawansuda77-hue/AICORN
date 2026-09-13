@@ -14,11 +14,19 @@ export async function GET(request: NextRequest) {
     const model = searchParams.get("model");
     const type = searchParams.get("type");
     const sort = searchParams.get("sort") || "trending";
+    const ids = searchParams.get("ids");
 
     let query = adminSupabase
       .from("prompts")
       .select("*, profiles(*)")
       .eq("status", "approved");
+
+    if (ids) {
+      const idList = ids.split(",").map((s) => s.trim()).filter(Boolean);
+      if (idList.length > 0) {
+        query = query.in("id", idList);
+      }
+    }
 
     if (q) {
       query = query.or(`title.ilike.%${q}%,prompt_text.ilike.%${q}%`);

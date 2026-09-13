@@ -7,7 +7,6 @@ import { Container } from "@/components/ui/container";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
-import { createClient } from "@/lib/supabase/client";
 import { getSavedPromptIds } from "@/lib/saved-prompts";
 import { Bookmark, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -23,10 +22,9 @@ export default function SavedPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [entries, setEntries] = useState<SavedEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  // Track which user ID the current entries belong to
   const lastUserId = useRef<string | null>(null);
 
-  const fetchSaved = useCallback(async (uid: string) => {
+  const fetchSaved = useCallback(async (uid?: string | null) => {
     setLoading(true);
     const savedIds = getSavedPromptIds(uid);
     if (!savedIds.length) {
@@ -35,22 +33,14 @@ export default function SavedPage() {
       return;
     }
 
-    const supabase = createClient();
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
     try {
-      const { data, error } = await supabase
-        .from("prompts")
-        .select("*, profiles(*)")
-        .in("id", savedIds);
-
-      if (!error && data) {
+      const res = await fetch(`/api/prompts?ids=${encodeURIComponent(savedIds.join(","))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data.prompts) ? data.prompts : [];
         // Preserve saved order
         const mapped: SavedEntry[] = savedIds
-          .map((id) => (data as (Prompt & { profiles: Profile | null })[]).find((p) => p.id === id))
+          .map((id) => (list as (Prompt & { profiles: Profile | null })[]).find((p) => p.id === id))
           .filter((p): p is Prompt & { profiles: Profile | null } => Boolean(p))
           .map((p) => ({
             prompt: p,
@@ -70,22 +60,16 @@ export default function SavedPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    // If user changed (or logged out), clear stale entries immediately
     const uid = user?.id ?? null;
     if (uid !== lastUserId.current) {
       setEntries([]);
       lastUserId.current = uid;
     }
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    fetchSaved(user.id);
+    fetchSaved(uid);
 
     const handleSavedChange = () => {
-      fetchSaved(user.id);
+      fetchSaved(user?.id ?? null);
     };
 
     window.addEventListener("aicorn_saved_prompts_changed", handleSavedChange);
@@ -117,33 +101,17 @@ export default function SavedPage() {
           </div>
         )}
 
-        {/* Not logged in */}
-        {!loading && !authLoading && !user && (
-          <div className="flex flex-col items-center justify-center py-32 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-white/40">
-              <Bookmark className="w-6 h-6" strokeWidth={1.5} />
-            </div>
-            <h3 className="text-base font-semibold text-white mb-1">Sign in to see saved prompts</h3>
-            <p className="text-xs text-white/50 mb-6 max-w-xs">
-              Create an account or sign in to bookmark prompts and access them anytime.
-            </p>
-            <Link href="/login">
-              <GlassButton variant="accent" size="sm">Sign In</GlassButton>
-            </Link>
-          </div>
-        )}
-
         {/* Saved prompts grid */}
-        {!loading && !authLoading && user && entries.length > 0 && (
-          <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-5">
+        {!loading && !authLoading && entries.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 items-stretch">
             {entries.map(({ prompt, creator }) => (
               <PromptCard key={prompt.id} prompt={prompt} creator={creator} />
             ))}
           </div>
         )}
 
-        {/* Empty state */}
-        {!loading && !authLoading && user && entries.length === 0 && (
+        {/* Empty state when no prompts are saved */}
+        {!loading && !authLoading && entries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-32 text-center">
             <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-white/40">
               <Bookmark className="w-6 h-6" strokeWidth={1.5} />

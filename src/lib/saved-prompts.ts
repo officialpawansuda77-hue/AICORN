@@ -9,10 +9,47 @@ const getStorageKey = (userId?: string | null) => {
 export function getSavedPromptIds(userId?: string | null): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(getStorageKey(userId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const key = getStorageKey(userId);
+    const raw = localStorage.getItem(key);
+    let ids: string[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) ids = parsed;
+      } catch {}
+    }
+
+    // If a logged-in user exists, merge any prompt IDs saved during anon session
+    if (userId) {
+      const anonRaw = localStorage.getItem("aicorn_saved_prompts_anon");
+      if (anonRaw) {
+        try {
+          const anonParsed = JSON.parse(anonRaw);
+          if (Array.isArray(anonParsed) && anonParsed.length > 0) {
+            const merged = Array.from(new Set([...ids, ...anonParsed]));
+            localStorage.setItem(key, JSON.stringify(merged));
+            localStorage.removeItem("aicorn_saved_prompts_anon");
+            ids = merged;
+          }
+        } catch {}
+      }
+    }
+
+    // Also merge any legacy global key if present
+    const legacyRaw = localStorage.getItem("aicorn_saved_prompts");
+    if (legacyRaw) {
+      try {
+        const legacyParsed = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          const merged = Array.from(new Set([...ids, ...legacyParsed]));
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.removeItem("aicorn_saved_prompts");
+          ids = merged;
+        }
+      } catch {}
+    }
+
+    return ids;
   } catch {
     return [];
   }

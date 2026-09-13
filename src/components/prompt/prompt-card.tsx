@@ -110,14 +110,16 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!user) {
-      openAuthModal();
-      return;
-    }
-
-    const nowSaved = toggleSavedPrompt(prompt.id, user.id);
+    const nowSaved = toggleSavedPrompt(prompt.id, user?.id);
     setSaved(nowSaved);
-    toast(nowSaved ? "Saved to collection" : "Removed from saved", "success");
+    toast(
+      nowSaved
+        ? user
+          ? "Saved to collection"
+          : "Saved locally (Sign in to sync)"
+        : "Removed from saved",
+      "success"
+    );
   };
 
   const formattedDuration = prompt.duration_sec
