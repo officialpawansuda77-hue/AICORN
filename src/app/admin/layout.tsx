@@ -44,7 +44,7 @@ export default function AdminLayout({
       if (!user) {
         toast("Please sign in as administrator to access the admin console.", "error");
         router.replace("/login");
-      } else if (profile && !isAdmin) {
+      } else if (!isAdmin) {
         toast("Access restricted: Administrator role required.", "error");
         router.replace("/home");
       }
@@ -59,7 +59,7 @@ export default function AdminLayout({
     );
   }
 
-  if (profile && !isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-[#08090B] text-white flex flex-col items-center justify-center p-4 text-center">
         <Shield className="w-12 h-12 text-red-400 mb-4" />

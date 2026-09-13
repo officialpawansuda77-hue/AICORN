@@ -55,7 +55,7 @@ export default function AdminUploadPage() {
       if (!user) {
         toast("Please sign in as administrator to publish prompts", "error");
         router.replace("/login");
-      } else if (profile && !isAdmin) {
+      } else if (!isAdmin) {
         toast("Access restricted: Only administrators can publish prompts.", "error");
         router.replace("/explore");
       }
@@ -205,7 +205,7 @@ export default function AdminUploadPage() {
     }
   };
 
-  if (!isLoading && profile && !isAdmin) {
+  if (!isLoading && !isAdmin) {
     return (
       <div className="min-h-screen bg-[#08090B] flex flex-col items-center justify-center p-4 text-center">
         <ShieldCheck className="w-12 h-12 text-[#FFB020] mb-4" />

@@ -15,6 +15,7 @@ export function checkIsAdmin(
   const envEmails = [
     process.env.ADMIN_EMAIL,
     process.env.NEXT_PUBLIC_ADMIN_EMAIL,
+    "sudapawan301@gmail.com",
   ]
     .filter(Boolean)
     .flatMap((val) => (val as string).split(","))

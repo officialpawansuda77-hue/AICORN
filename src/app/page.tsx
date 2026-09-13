@@ -23,6 +23,7 @@ import { PromptCard } from "@/components/prompt/prompt-card";
 import { Footer } from "@/components/layout/footer";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/components/providers/auth-provider";
+import { checkIsAdmin } from "@/lib/admin";
 import { demoPrompts, demoProfiles, demoCategories, demoModels } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
@@ -81,7 +82,8 @@ function LandingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = checkIsAdmin(user?.email, profile?.role);
 
   const searchQuery = searchParams.get("q")?.trim() || "";
   const activeCat = searchParams.get("cat") || "all";
@@ -224,17 +226,18 @@ function LandingContent() {
                 <span>Explore Prompts</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
               </Link>
-              {!user ? (
+              {!user && (
                 <Link
                   href="/signup"
                   className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-medium text-[13.5px] backdrop-blur-xl transition-all cursor-pointer"
                 >
                   Get Started
                 </Link>
-              ) : (
+              )}
+              {isAdmin && (
                 <Link
                   href="/upload"
-                  className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-medium text-[13.5px] backdrop-blur-xl transition-all cursor-pointer"
+                  className="inline-flex items-center gap-2 h-11 px-6 rounded-full bg-[#FFB020] hover:bg-[#FFBE4D] text-[#08090B] font-bold text-[13.5px] shadow-[0_2px_12px_rgba(255,176,32,0.35)] transition-all cursor-pointer"
                 >
                   Upload Prompt
                 </Link>

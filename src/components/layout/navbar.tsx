@@ -63,7 +63,7 @@ export function Navbar({ user: propUser }: NavbarProps) {
     display_name: profile.display_name,
     avatar_url: profile.avatar_url || authUser?.user_metadata?.avatar_url,
     plan: profile.plan,
-    role: isAdmin ? ("admin" as const) : profile.role,
+    role: isAdmin ? ("admin" as const) : ("explorer" as const),
   } : authUser ? {
     id: authUser.id,
     username: authUser.email?.split("@")[0],
