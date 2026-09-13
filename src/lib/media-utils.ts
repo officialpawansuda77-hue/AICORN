@@ -10,15 +10,18 @@
  * - https://drive.google.com/uc?id=FILE_ID
  * - https://drive.google.com/file/d/FILE_ID
  */
-export function extractGoogleDriveId(url: string): string | null {
+export function extractGoogleDriveId(url: string | null | undefined): string | null {
   if (!url) return null;
-  // Reject folder URLs - folders cannot be played as media files
-  if (url.includes("/folders/")) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
 
-  const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  // Reject folder URLs - folders cannot be played as media files
+  if (trimmed.includes("/folders/")) return null;
+
+  const fileDMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (fileDMatch && fileDMatch[1]) return fileDMatch[1];
 
-  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (idMatch && idMatch[1]) return idMatch[1];
 
   return null;
@@ -27,7 +30,7 @@ export function extractGoogleDriveId(url: string): string | null {
 /**
  * Checks if a given URL is a Google Drive link.
  */
-export function isGoogleDriveUrl(url: string): boolean {
+export function isGoogleDriveUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return url.includes("drive.google.com") || url.includes("docs.google.com");
 }
@@ -35,7 +38,7 @@ export function isGoogleDriveUrl(url: string): boolean {
 /**
  * Checks if a given URL is a Dropbox link.
  */
-export function isDropboxUrl(url: string): boolean {
+export function isDropboxUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return url.includes("dropbox.com");
 }
@@ -55,8 +58,12 @@ export function formatMediaUrl(url: string | null | undefined, mediaType: "video
   }
 
   // 1. Google Drive handling
-  const driveId = extractGoogleDriveId(trimmed);
-  if (driveId) {
+  if (isGoogleDriveUrl(trimmed)) {
+    const driveId = extractGoogleDriveId(trimmed);
+    if (!driveId) {
+      // Incomplete or invalid Google Drive URL (no file ID found)
+      return null;
+    }
     if (mediaType === "image") {
       // High-resolution Google Drive image thumbnail
       return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`;
@@ -79,17 +86,29 @@ export function formatMediaUrl(url: string | null | undefined, mediaType: "video
  */
 export function getThumbnailUrl(url: string | null | undefined, mediaType: "video" | "image" = "video"): string | null {
   if (!url) return null;
-  const driveId = extractGoogleDriveId(url);
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (isGoogleDriveUrl(trimmed)) {
+    const driveId = extractGoogleDriveId(trimmed);
+    if (driveId) {
+      return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
+    }
+    return null;
+  }
+
+  const driveId = extractGoogleDriveId(trimmed);
   if (driveId) {
     return `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`;
   }
-  return formatMediaUrl(url, mediaType);
+  return formatMediaUrl(trimmed, mediaType);
 }
 
 /**
  * Gets the embedded player URL for Google Drive preview (works for any video size with 0 bandwidth limits).
  */
-export function getDriveEmbedUrl(url: string): string | null {
+export function getDriveEmbedUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
   const driveId = extractGoogleDriveId(url);
   if (driveId) {
     return `https://drive.google.com/file/d/${driveId}/preview`;

@@ -129,9 +129,20 @@ export default function AdminUploadPage() {
       return;
     }
 
-    if (sourceMode === "url" && !mediaUrlInput.trim()) {
-      toast("Please provide a valid Google Drive or direct video/image link.", "error");
-      return;
+    if (sourceMode === "url") {
+      const trimmed = mediaUrlInput.trim();
+      if (!trimmed) {
+        toast("Please provide a valid Google Drive or direct video/image link.", "error");
+        return;
+      }
+      if (isGoogleDriveUrl(trimmed) && !extractGoogleDriveId(trimmed)) {
+        toast("Invalid Google Drive URL: Missing file ID. Please provide a full link with file ID.", "error");
+        return;
+      }
+      if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+        toast("Please provide a valid URL starting with http:// or https://", "error");
+        return;
+      }
     }
 
     if (sourceMode === "file" && !file && !filePreview) {
@@ -146,9 +157,12 @@ export default function AdminUploadPage() {
       let finalThumbnailUrl: string | null = "";
 
       if (sourceMode === "url") {
-        // Direct URL / Google Drive - NO Supabase storage needed!
-        finalMediaUrl = resolvedMediaUrl || null;
-        finalThumbnailUrl = resolvedThumbnailUrl || null;
+        // Direct URL / Google Drive - Store original source link
+        finalMediaUrl = mediaUrlInput.trim();
+        finalThumbnailUrl =
+          thumbnailUrlInput.trim() ||
+          resolvedThumbnailUrl ||
+          mediaUrlInput.trim();
       } else if (file) {
         // Fallback local file upload to storage
         const supabase = createClient();
@@ -342,13 +356,25 @@ export default function AdminUploadPage() {
                   </div>
 
                   {/* Drive Detection Notice */}
-                  {isDrive && (
+                  {isDrive && !driveId && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-300">
+                      <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-amber-200">Incomplete Google Drive Link</p>
+                        <p className="text-[11px] text-amber-200/70 mt-0.5">
+                          Missing File ID. Make sure your link looks like: <span className="font-mono text-white/90">https://drive.google.com/file/d/FILE_ID/view</span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isDrive && driveId && (
                     <div className="p-3 rounded-2xl bg-[#FFB020]/10 border border-[#FFB020]/25 flex items-start gap-2.5 text-xs text-white/90">
                       <Sparkles className="w-4 h-4 text-[#FFB020] shrink-0 mt-0.5" />
                       <div>
                         <p className="font-semibold text-white">Google Drive Link Detected</p>
                         <p className="text-[11px] text-white/60 mt-0.5">
-                          Automatically configured for direct streaming and embedded preview without file size restrictions.
+                          File ID: <span className="font-mono text-[#FFB020]">{driveId}</span> — Configured for direct streaming and embedded preview without size restrictions.
                         </p>
                       </div>
                     </div>
@@ -554,7 +580,15 @@ export default function AdminUploadPage() {
             {/* Preview Card */}
             <GlassPanel rounded="3xl" className="overflow-hidden bg-white/[0.04] border-white/[0.08] shadow-2xl">
               <div className="relative w-full aspect-[4/5] bg-black/60 overflow-hidden flex items-center justify-center">
-                {resolvedMediaUrl ? (
+                {sourceMode === "url" && isDrive && !driveId ? (
+                  <div className="text-center p-6 text-amber-400/90">
+                    <Info className="w-10 h-10 mx-auto mb-2 text-amber-400 opacity-80" />
+                    <p className="text-xs font-semibold text-amber-300">Incomplete Drive Link</p>
+                    <p className="text-[11px] text-white/50 mt-1 max-w-[200px] mx-auto">
+                      Please include the File ID in the URL to preview
+                    </p>
+                  </div>
+                ) : resolvedMediaUrl ? (
                   mediaType === "video" ? (
                     embedUrl ? (
                       <iframe

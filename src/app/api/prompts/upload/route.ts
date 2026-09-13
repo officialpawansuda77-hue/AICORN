@@ -2,6 +2,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { checkIsAdmin } from "@/lib/admin";
+import { isGoogleDriveUrl, extractGoogleDriveId, getThumbnailUrl } from "@/lib/media-utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,19 +54,39 @@ export async function POST(request: NextRequest) {
       tags,
     } = body;
 
-    if (!title || !prompt_text || !media_url) {
+    const trimmedMediaUrl = typeof media_url === "string" ? media_url.trim() : "";
+
+    if (!title || !prompt_text || !trimmedMediaUrl) {
       return NextResponse.json(
         { error: "Title, prompt text, and media are required." },
         { status: 400 }
       );
     }
 
-    if (media_url.startsWith("blob:") || !media_url.startsWith("http")) {
+    if (
+      trimmedMediaUrl.startsWith("blob:") ||
+      (!trimmedMediaUrl.startsWith("http://") &&
+        !trimmedMediaUrl.startsWith("https://") &&
+        !trimmedMediaUrl.startsWith("/api/"))
+    ) {
       return NextResponse.json(
         { error: "Invalid media URL. Please upload a valid image or video file." },
         { status: 400 }
       );
     }
+
+    if (isGoogleDriveUrl(trimmedMediaUrl) && !extractGoogleDriveId(trimmedMediaUrl)) {
+      return NextResponse.json(
+        { error: "Invalid Google Drive link. Please provide a complete link with a valid file ID." },
+        { status: 400 }
+      );
+    }
+
+    const effectiveThumbnailUrl =
+      thumbnail_url?.trim() ||
+      (isGoogleDriveUrl(trimmedMediaUrl)
+        ? getThumbnailUrl(trimmedMediaUrl, media_type)
+        : trimmedMediaUrl);
 
     const { data: newPrompt, error: insertError } = await adminSupabase
       .from("prompts")
@@ -75,8 +96,8 @@ export async function POST(request: NextRequest) {
         prompt_text: prompt_text.trim(),
         negative_prompt: negative_prompt?.trim() || null,
         media_type: media_type || "video",
-        media_url: media_url,
-        thumbnail_url: thumbnail_url || media_url,
+        media_url: trimmedMediaUrl,
+        thumbnail_url: effectiveThumbnailUrl,
         aspect_ratio: 0.8,
         duration_sec: media_type === "video" ? 8 : null,
         category_slug: category_slug || "ugc",
