@@ -4,7 +4,8 @@ import { Providers } from "@/components/providers/providers";
 import { MeshGradient } from "@/components/ui/mesh-gradient";
 import { Navbar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
-import { CookieBanner, GatedAnalytics } from "@/components/ui/cookie-banner";
+import { Analytics } from "@vercel/analytics/next";
+import { CookieBanner } from "@/components/ui/cookie-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -72,8 +73,8 @@ export default function RootLayout({
             {children}
           </main>
 
-          {/* Vercel Analytics (gated on cookie consent) */}
-          <GatedAnalytics />
+          {/* Vercel Web Analytics */}
+          <Analytics />
 
           {/* Cookie Consent */}
           <CookieBanner />
