@@ -158,11 +158,14 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
               if (prompt.media_type === "video") {
                 const isDrive = isGoogleDriveUrl(rawMediaUrl);
                 const embedUrl = isDrive ? getDriveEmbedUrl(rawMediaUrl) : null;
-                const resolvedThumb = getThumbnailUrl(rawThumbUrl || rawMediaUrl, "video");
+                const resolvedThumb = rawThumbUrl
+                  ? getThumbnailUrl(rawThumbUrl, "video")
+                  : (isDrive ? getThumbnailUrl(rawMediaUrl, "video") : null);
                 const resolvedVideo = isDrive ? null : formatMediaUrl(rawMediaUrl, "video");
+                const hasPlayableVideo = Boolean((resolvedVideo && !videoError) || embedUrl);
 
                 // If neither thumbnail nor video source is available, or both errored out
-                if ((!resolvedThumb && !resolvedVideo && !embedUrl) || (imageError && videoError && !embedUrl)) {
+                if (!resolvedThumb && !hasPlayableVideo) {
                   return (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-white/[0.03] text-white/35">
                       <ImageOff className="w-6 h-6" strokeWidth={1.5} />
@@ -173,7 +176,7 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
 
                 return (
                   <>
-                    {/* Base thumbnail image or fallback when resolved thumbnail is absent */}
+                    {/* Base thumbnail image, embed iframe, or neutral video backdrop */}
                     {resolvedThumb && !imageError ? (
                       <img
                         src={resolvedThumb}
@@ -189,12 +192,17 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
                         allow="autoplay"
                         loading="lazy"
                         title={prompt.title || "AI Prompt video"}
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
                       />
-                    ) : (
-                      /* Fallback when resolved thumbnail is absent or has error */
+                    ) : !hasPlayableVideo ? (
                       <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-white/[0.03] text-white/35 select-none pointer-events-none">
                         <ImageOff className="w-6 h-6" strokeWidth={1.5} />
                         <span className="text-[11px] font-medium">Media unavailable</span>
+                      </div>
+                    ) : (
+                      /* Neutral background when thumbnail is absent but video is playable on hover */
+                      <div className="w-full h-full bg-white/[0.02] flex items-center justify-center text-white/20 select-none pointer-events-none">
+                        <Play className="w-8 h-8 opacity-40" strokeWidth={1} />
                       </div>
                     )}
 

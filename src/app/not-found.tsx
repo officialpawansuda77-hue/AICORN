@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Home, Compass, ArrowLeft } from "lucide-react";
-import { GlassButton } from "@/components/ui/glass-button";
+import { glassButtonVariants } from "@/components/ui/glass-button";
+import { cn } from "@/lib/utils";
 
 export default function NotFound() {
   return (
@@ -36,17 +37,19 @@ export default function NotFound() {
       </p>
 
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <Link href="/">
-          <GlassButton variant="accent" size="md" className="flex items-center gap-2">
-            <Home className="w-4 h-4" />
-            Go Home
-          </GlassButton>
+        <Link
+          href="/"
+          className={cn(glassButtonVariants({ variant: "accent", size: "md" }), "flex items-center gap-2")}
+        >
+          <Home className="w-4 h-4" />
+          Go Home
         </Link>
-        <Link href="/explore">
-          <GlassButton variant="glass" size="md" className="flex items-center gap-2">
-            <Compass className="w-4 h-4" />
-            Browse Prompts
-          </GlassButton>
+        <Link
+          href="/explore"
+          className={cn(glassButtonVariants({ variant: "glass", size: "md" }), "flex items-center gap-2")}
+        >
+          <Compass className="w-4 h-4" />
+          Browse Prompts
         </Link>
         <button
           type="button"

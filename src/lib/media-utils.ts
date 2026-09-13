@@ -12,11 +12,11 @@
  */
 export function extractGoogleDriveId(url: string): string | null {
   if (!url) return null;
+  // Reject folder URLs - folders cannot be played as media files
+  if (url.includes("/folders/")) return null;
+
   const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (fileDMatch && fileDMatch[1]) return fileDMatch[1];
-
-  const folderMatch = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  if (folderMatch && folderMatch[1]) return folderMatch[1];
 
   const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (idMatch && idMatch[1]) return idMatch[1];
@@ -48,6 +48,11 @@ export function formatMediaUrl(url: string | null | undefined, mediaType: "video
   if (!url) return null;
   const trimmed = url.trim();
   if (!trimmed) return null;
+
+  // Google Drive folder URLs cannot be played directly as media files
+  if (trimmed.includes("/folders/")) {
+    return null;
+  }
 
   // 1. Google Drive handling
   const driveId = extractGoogleDriveId(trimmed);

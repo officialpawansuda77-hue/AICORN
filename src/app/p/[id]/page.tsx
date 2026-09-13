@@ -275,6 +275,7 @@ export default function PromptDetailPage({
                           className="w-full h-full min-h-[360px] sm:min-h-[460px] rounded-3xl border-0"
                           allow="autoplay; fullscreen"
                           allowFullScreen
+                          sandbox="allow-scripts allow-same-origin allow-presentation"
                         />
                       </div>
                     );

@@ -59,7 +59,7 @@ export default function SettingsPage() {
       setDisplayName(user.user_metadata?.full_name || emailPrefix);
       setAvatarUrl(user.user_metadata?.avatar_url || null);
       setPlan("free");
-      originalUsername.current = emailPrefix;
+      originalUsername.current = "";
     }
   }, [profile, user]);
 

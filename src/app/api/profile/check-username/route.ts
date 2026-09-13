@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ available: !data });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ available: false, reason: "server_error", error: message }, { status: 500 });
+    console.error("Error in check-username route:", err);
+    return NextResponse.json({ available: false, reason: "server_error" }, { status: 500 });
   }
 }
