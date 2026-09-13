@@ -38,7 +38,7 @@ import {
   getDriveEmbedUrl,
   isGoogleDriveUrl,
 } from "@/lib/media-utils";
-import { formatNumber, formatRelativeTime } from "@/lib/utils";
+import { formatNumber, formatRelativeTime, cn } from "@/lib/utils";
 import type { Prompt } from "@/types/database";
 
 type PromptWithProfile = Prompt & {
@@ -154,6 +154,14 @@ export default function PromptDetailPage({
   const handleCopy = useCallback(async () => {
     if (!prompt) return;
 
+    if (!user) {
+      openAuthModal({
+        title: "Sign in to Copy Prompt",
+        subtitle: "Please sign in or create an account to copy prompts.",
+      });
+      return;
+    }
+
     const isPro = profile?.plan === "pro";
     const isAdmin = checkIsAdmin(user?.email, profile?.role);
     const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro, isAdmin);
@@ -171,10 +179,18 @@ export default function PromptDetailPage({
     } catch {
       toast("Failed to copy prompt", "error");
     }
-  }, [prompt, toast, profile]);
+  }, [prompt, toast, profile, user, openAuthModal]);
 
   const handleCopyJson = useCallback(async () => {
     if (!prompt) return;
+
+    if (!user) {
+      openAuthModal({
+        title: "Sign in to Copy JSON",
+        subtitle: "Please sign in or create an account to copy prompt details.",
+      });
+      return;
+    }
 
     const isPro = profile?.plan === "pro";
     const isAdmin = checkIsAdmin(user?.email, profile?.role);
@@ -205,7 +221,7 @@ export default function PromptDetailPage({
     } catch {
       toast("Failed to copy", "error");
     }
-  }, [prompt, toast, profile]);
+  }, [prompt, toast, profile, user, openAuthModal]);
 
   // Loading state
   if (loading) {
@@ -440,7 +456,29 @@ export default function PromptDetailPage({
                   </button>
                 </div>
               </div>
-              <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-xl font-mono text-xs text-white/80 leading-relaxed whitespace-pre-wrap select-all">
+              <div
+                onClick={() => {
+                  if (!user) {
+                    openAuthModal({
+                      title: "Sign in to Copy Prompt",
+                      subtitle: "Please sign in or create an account to copy prompts.",
+                    });
+                  }
+                }}
+                onCopy={(e) => {
+                  if (!user) {
+                    e.preventDefault();
+                    openAuthModal({
+                      title: "Sign in to Copy Prompt",
+                      subtitle: "Please sign in or create an account to copy prompts.",
+                    });
+                  }
+                }}
+                className={cn(
+                  "p-4 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-xl font-mono text-xs text-white/80 leading-relaxed whitespace-pre-wrap",
+                  user ? "select-all" : "select-none cursor-pointer"
+                )}
+              >
                 {prompt.prompt_text}
               </div>
             </div>
@@ -451,7 +489,29 @@ export default function PromptDetailPage({
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-red-400/80 mb-2">
                   Negative Prompt
                 </h4>
-                <div className="p-3.5 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-xl font-mono text-xs text-red-300/80 leading-relaxed whitespace-pre-wrap">
+                <div
+                  onClick={() => {
+                    if (!user) {
+                      openAuthModal({
+                        title: "Sign in to Copy Prompt",
+                        subtitle: "Please sign in or create an account to copy prompts.",
+                      });
+                    }
+                  }}
+                  onCopy={(e) => {
+                    if (!user) {
+                      e.preventDefault();
+                      openAuthModal({
+                        title: "Sign in to Copy Prompt",
+                        subtitle: "Please sign in or create an account to copy prompts.",
+                      });
+                    }
+                  }}
+                  className={cn(
+                    "p-3.5 rounded-2xl bg-red-500/[0.04] border border-red-500/20 backdrop-blur-xl font-mono text-xs text-red-300/80 leading-relaxed whitespace-pre-wrap",
+                    user ? "select-all" : "select-none cursor-pointer"
+                  )}
+                >
                   {prompt.negative_prompt}
                 </div>
               </div>

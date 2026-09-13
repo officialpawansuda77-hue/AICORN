@@ -93,6 +93,14 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
+    if (!user) {
+      openAuthModal({
+        title: "Sign in to Copy Prompt",
+        subtitle: "Please sign in or create an account to copy prompts.",
+      });
+      return;
+    }
+
     const isPro = profile?.plan === "pro";
     const isAdmin = checkIsAdmin(user?.email, profile?.role);
     const shouldCopy = handlePromptCopyAdFlow(prompt.id, isPro, isAdmin);
@@ -129,7 +137,18 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
     : "0:08";
 
   return (
-    <div className="h-full flex flex-col w-full">
+    <div
+      onCopy={(e) => {
+        if (!user) {
+          e.preventDefault();
+          openAuthModal({
+            title: "Sign in to Copy Prompt",
+            subtitle: "Please sign in or create an account to copy prompts.",
+          });
+        }
+      }}
+      className="h-full flex flex-col w-full"
+    >
       <Link href={`/p/${prompt.id}`} className="block group h-full flex flex-col">
         <div
           className={cn(
@@ -289,7 +308,7 @@ export function PromptCard({ prompt, creator }: PromptCardProps) {
           {/* Info block: flex flex-1 flex-col gap-3 p-4 */}
           <div className="p-4 flex flex-1 flex-col gap-3">
             {/* Title: line-clamp-2 min-h-[40px] */}
-            <h3 className="text-[13.5px] font-medium text-white/90 leading-snug line-clamp-2 min-h-[40px]">
+            <h3 className="text-[13.5px] font-medium text-white/90 leading-snug line-clamp-2 min-h-[40px] select-none">
               {prompt.title || prompt.prompt_text}
             </h3>
 

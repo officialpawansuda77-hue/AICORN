@@ -185,8 +185,8 @@ export function AuthModal({
           </>
         )}
 
-        <div className="mt-6 pt-4 border-t border-white/10">
-          <p className="text-[11.5px] text-white/50">
+        <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11.5px] text-white/50 px-1">
+          <p>
             Don&apos;t have an account?{" "}
             <Link
               href="/signup"
@@ -196,6 +196,13 @@ export function AuthModal({
               Sign up
             </Link>
           </p>
+          <Link
+            href="/login"
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors"
+          >
+            Log in
+          </Link>
         </div>
       </div>
     </div>

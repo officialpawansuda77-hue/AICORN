@@ -6,12 +6,17 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types/database";
 import { AuthModal } from "@/components/auth/auth-modal";
 
+interface AuthModalConfig {
+  title?: string;
+  subtitle?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
   isAuthModalOpen: boolean;
-  openAuthModal: () => void;
+  openAuthModal: (options?: AuthModalConfig) => void;
   closeAuthModal: () => void;
   signOut: () => Promise<void>;
 }
@@ -31,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [modalConfig, setModalConfig] = useState<AuthModalConfig>({});
 
   const fetchProfile = async (userId: string) => {
     const supabase = createClient();
@@ -82,8 +88,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const openAuthModal = () => setIsAuthModalOpen(true);
-  const closeAuthModal = () => setIsAuthModalOpen(false);
+  const openAuthModal = (options?: AuthModalConfig) => {
+    if (options) {
+      setModalConfig(options);
+    } else {
+      setModalConfig({});
+    }
+    setIsAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setIsAuthModalOpen(false);
+    setModalConfig({});
+  };
 
   const signOut = async () => {
     try {
@@ -116,7 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      <AuthModal isOpen={isAuthModalOpen} onClose={closeAuthModal} />
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={closeAuthModal}
+        title={modalConfig.title}
+        subtitle={modalConfig.subtitle}
+      />
     </AuthContext.Provider>
   );
 }
